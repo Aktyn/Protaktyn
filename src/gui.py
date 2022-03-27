@@ -7,11 +7,10 @@ WINDOW_HEIGHT = 480
 BUTTON_WIDTH = 100
 BUTTON_HEIGHT = 30
 
-FULL_SCREEN = False  # Set to True to run on production
+FULL_SCREEN = True  # Set to True to run on production
 
 
 class GUIEvents(QtCore.QThread):
-
     set_label_text = QtCore.pyqtSignal(str)
 
     def __init__(self, on_init):
@@ -33,10 +32,11 @@ class GUI:
 
         self.__label = QtWidgets.QLabel(self.__window)
         self.__label.setText("-")
-        self.__label.move(0, 0)
-        self.__label.setFixedWidth(width)
-        self.__label.setFixedHeight(height)
-        self.__label.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignHCenter)
+        offset = 8
+        self.__label.move(offset, offset)
+        self.__label.setFixedWidth(width - offset * 2)
+        self.__label.setFixedHeight(height - offset * 2)
+        self.__label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
 
         close_button = QtWidgets.QPushButton(self.__window)
         close_button.setText("Close")
@@ -56,5 +56,5 @@ class GUI:
         downloader.start()
 
         exec_code = app.exec_()
-        downloader.exit(exec_code)
+        downloader.terminate()
         sys.exit(exec_code)
