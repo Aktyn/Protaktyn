@@ -10,7 +10,7 @@ class Speech:
     __LANG = "pl-PL"  # "en-US", "pl-PL"
     __MAX_SAMPLES = 5
     __MAX_QUEUE_SAMPLES_SIZE = 8
-    __AMBIENT_NOISE_ADJUSTING_DURATION = 5
+    __AMBIENT_NOISE_ADJUSTING_DURATION = 1  # Restore 5 seconds on production
 
     class __Recorder:
         __SAMPLE_DURATION = 1.5
@@ -93,7 +93,8 @@ class Speech:
                 sample = recorder.get_next_sample()
                 interim_prediction = self.__get_prediction(recognizer, [sample])
 
-                if interim_prediction is None or len(predictions_streak) >= self.__MAX_SAMPLES:
+                if interim_prediction is None or len(interim_prediction) == 0 or len(
+                        predictions_streak) >= self.__MAX_SAMPLES:
                     if len(predictions_streak) > 0:
                         predictions_streak.append(sample)
                         final_prediction = self.__get_prediction(recognizer, predictions_streak)
