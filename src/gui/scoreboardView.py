@@ -18,8 +18,6 @@ class ScoreboardView:
         events.scoreboard_view_update_points.connect(lambda p1, p2: self.__handle_update_points(p1, p2))
         events.scoreboard_view_hide.connect(self.__handle_view_hide)
 
-        # self.__init_view()
-
     def __init_view(self):
         self.__points_label = QtWidgets.QLabel(self.__window)
         self.__points_label.move(0, GUIConsts.TOP_BAR_HEIGHT)

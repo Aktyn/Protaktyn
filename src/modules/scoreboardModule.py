@@ -31,7 +31,6 @@ class ScoreboardModule(ModuleBase):
 
     def __handle_set_points(self, match: Match[str]):
         groups = match.groups()
-        print("Groups:", groups)
         if len(groups) < 4:
             return
 
