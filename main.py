@@ -2,6 +2,8 @@
 Speech recognition test for raspberry pi
 
 sudo apt install flac
+sudo apt install ffmpeg
+sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev
 sudo pip3 install speechrecognition
 """
 

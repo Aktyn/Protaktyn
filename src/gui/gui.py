@@ -3,12 +3,13 @@ from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import QFont
 
 from src.gui.gui_consts import GUIConsts
-from src.gui.scoreboardView import ScoreboardViewEvents, ScoreboardView
+from src.modules.robot.view import RobotViewEvents, RobotView
+from src.modules.scoreboard.view import ScoreboardViewEvents, ScoreboardView
 
 import sys
 
 
-class GUIEvents(QtCore.QThread, ScoreboardViewEvents):
+class GUIEvents(QtCore.QThread, RobotViewEvents, ScoreboardViewEvents):
     close = QtCore.pyqtSignal()
     show_confirmation_info = QtCore.pyqtSignal(str)
     close_confirmation_info = QtCore.pyqtSignal()
@@ -53,6 +54,7 @@ class GUI:
 
         # Init views
         ScoreboardView(self.__window, self.__events)
+        RobotView(self.__window, self.__events)
 
         self.__events.start()
 

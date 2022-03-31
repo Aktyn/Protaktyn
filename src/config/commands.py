@@ -5,8 +5,11 @@ class Commands:
     reject = r"(nie|anuluj[eę]?|zaprzeczam|odrzuć|odrzucam)"
 
     exit_current_module = r"(zako[nń]cz|wy[lł][aą]cz|zamknij)( (obecny|aktywny))? modu[łl]"
-    start_scoreboard_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz) tablic[aąeę] punkt[oó]w"
 
     class SCOREBOARD:
+        start_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz|rozpocznij|zacznij) tablic[aąeę] punkt[oó]w"
         reset = r"(z?reset(uj)?|(wy)?zeruj) (punkty|wyniki|tablic[eę])"
         set_points = r".*(\s|^)([^\s]+)\s?(do|-)\s?([^\s]+).*"
+
+    class ROBOT:
+        start_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz|rozpocznij|zacznij) (modu[łl] )?robota?"

@@ -4,7 +4,8 @@ from src.commandsInterface import CommandsInterface
 from src.config.commands import Commands
 from src.gui.gui import GUI, GUIEvents
 from src.modules.moduleBase import ModuleBase
-from src.modules.scoreboardModule import ScoreboardModule
+from src.modules.robot.module import RobotModule
+from src.modules.scoreboard.module import ScoreboardModule
 from src.speech import Speech
 from src.utils import loud_print
 
@@ -21,9 +22,12 @@ class Core(CommandsInterface):
         self.__last_prediction: Optional[str] = None
         self.__update_gui_info_label()
 
+        # TODO: Help command displaying all available commands at the moment and specific help commands for each module
+
         super().register_command(regex=Commands.exit, on_match=self.__handle_exit_command)
-        super().register_command(regex=Commands.start_scoreboard_module,
+        super().register_command(regex=Commands.SCOREBOARD.start_module,
                                  on_match=lambda _: self.__start_module(ScoreboardModule))
+        super().register_command(regex=Commands.ROBOT.start_module, on_match=lambda _: self.__start_module(RobotModule))
         super().register_command(regex=Commands.exit_current_module, on_match=self.__exit_current_module)
 
         speech = Speech(on_prediction_result=self.__handle_prediction)
@@ -62,6 +66,7 @@ class Core(CommandsInterface):
 
         loud_print("Closing module: " + self.__module.__class__.__name__)
         self.__module.close()
+        del self.__module
         self.__module = None
         self.__update_gui_info_label()
 
@@ -70,7 +75,7 @@ class Core(CommandsInterface):
         if self.__module is not None:
             if self.__module.__class__.__name__ == ModuleClass.__name__:
                 return
-            del self.__module
+            self.__exit_current_module(None)
 
         loud_print("Running module: " + ModuleClass.__name__, True)
         self.__module = ModuleClass(self.__gui_events)
