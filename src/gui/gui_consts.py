@@ -1,3 +1,4 @@
+from src.utils import no_full_screen
 
 
 class GUIConsts:
@@ -7,4 +8,4 @@ class GUIConsts:
     WINDOW_HEIGHT = 480
     BUTTON_WIDTH = 100
     TOP_BAR_HEIGHT = 30
-    FULL_SCREEN = True  # Set to True to run on production
+    FULL_SCREEN = not no_full_screen()

@@ -18,6 +18,7 @@ Author: Aktyn
         
 Available arguments:
     nogui - disables PyQt5 GUI
+    no-full-screen - disable PyQT5 full-screen mode window
     use-epaper - uses ePaper display
     disable-speaker - disables voice generator
     speak="Words to say at start" - automatically speaks given command

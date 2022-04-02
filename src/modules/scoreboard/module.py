@@ -1,5 +1,5 @@
 import re
-from typing import Match
+from typing import Match, Optional
 from src.config.commands import Commands
 from src.epaper.epaper import EPaper
 from src.gui.gui import GUIEvents
@@ -14,19 +14,86 @@ class ScoreboardModule(ModuleBase):
         self.__epaper = EPaper()
         self.__points = (0, 0)
         self.__set_points = (0, 0)
+        self._gui_events.scoreboard_view_init.emit({
+            "on_left_player_point": lambda: self.__handle_point_increase(1, 0),
+            "on_right_player_point": lambda: self.__handle_point_increase(0, 1)
+        })
+
         self.__update_points(0, 0)
-        self.__current_set_points_prediction_id = None
+        self.__current_set_points_prediction_id: Optional[int] = None
         self.__set_points_match_results: list[dict] = []
+
+        self.__points_for_left_player_prediction_id: Optional[int] = None
+        self.__points_for_right_player_prediction_id: Optional[int] = None
+        self.__point_for_left_player_results: list[dict] = []
+        self.__point_for_right_player_results: list[dict] = []
 
         super().register_command(Commands.SCOREBOARD.reset, self.__handle_reset)
         super().register_command(Commands.SCOREBOARD.set_points, self.__handle_set_points_interim,
                                  self.__handle_set_points_finalize)
+        super().register_command(Commands.SCOREBOARD.point_for_left_player,
+                                 lambda _, __, ___: self.__handle_point_increase_interim(1, 0, _, __, ___),
+                                 lambda _: self.__handle_point_increase_finalize(1, 0, _))
+        super().register_command(Commands.SCOREBOARD.point_for_right_player,
+                                 lambda _, __, ___: self.__handle_point_increase_interim(0, 1, _, __, ___),
+                                 lambda _: self.__handle_point_increase_finalize(0, 1, _))
+
         super().register_command(Commands.SCOREBOARD.easter_egg, self.__handle_easter)
 
     def close(self):
         self._gui_events.scoreboard_view_hide.emit()
         super().close()
         del self.__epaper
+
+    def __handle_point_increase_interim(self, left: int, right: int, _match: Match[str], prediction_id: int,
+                                        final: bool):
+        print("Test1", left, right, prediction_id, final)
+        if left > 0:
+            if self.__points_for_left_player_prediction_id != prediction_id:
+                self.__points_for_left_player_prediction_id = prediction_id
+                self.__point_for_left_player_results = []
+
+            self.__point_for_left_player_results.append(dict({
+                "prediction_id": prediction_id,
+                "final": final,
+            }))
+        if right > 0:
+            if self.__points_for_right_player_prediction_id != prediction_id:
+                self.__points_for_right_player_prediction_id = prediction_id
+                self.__point_for_right_player_results = []
+
+            self.__point_for_right_player_results.append(dict({
+                "prediction_id": prediction_id,
+                "final": final,
+            }))
+
+    def __handle_point_increase_finalize(self, left: int, right: int, prediction_id: int):
+        print("Test2", left, right, prediction_id, len(self.__point_for_left_player_results), len(self.__point_for_right_player_results))
+        for final in (True, False):
+            if left > 0 and self.__points_for_left_player_prediction_id == prediction_id:
+                for result in self.__point_for_left_player_results:
+                    if result["final"] != final:
+                        continue
+                    self.__handle_point_increase(left, 0)
+                    return
+            if right > 0 and self.__points_for_right_player_prediction_id == prediction_id:
+                for result in self.__point_for_right_player_results:
+                    if result["final"] != final:
+                        continue
+                    self.__handle_point_increase(0, right)
+                    return
+
+    def __handle_point_increase(self, left: int, right: int):
+        new_left_points = self.__points[0] + left
+        new_right_points = self.__points[1] + right
+        if new_left_points >= 11 and new_left_points - 2 >= new_right_points:
+            new_left_points = new_right_points = 0
+            self.__update_set_points(self.__set_points[0] + 1, self.__set_points[1])
+        elif new_right_points >= 11 and new_right_points - 2 >= new_left_points:
+            new_left_points = new_right_points = 0
+            self.__update_set_points(self.__set_points[0], self.__set_points[1] + 1)
+
+        self.__update_points(new_left_points, new_right_points)
 
     def __update_points(self, p1: int, p2: int):
         self.__points = (p1, p2)
@@ -35,7 +102,7 @@ class ScoreboardModule(ModuleBase):
 
     def __update_set_points(self, p1: int, p2: int):
         self.__set_points = (p1, p2)
-        # self._gui_events.scoreboard_view_update_set_points.emit(p1, p2) #TODO
+        self._gui_events.scoreboard_view_update_set_points.emit(p1, p2)
         self.__epaper.update_set_points(p1, p2)
 
     def __handle_reset(self, *_args):

@@ -31,7 +31,10 @@ class Core(CommandsInterface):
         super().register_command(regex=Commands.exit_current_module, on_match=self.__exit_current_module)
 
         speech = Speech(on_prediction_result=self.__handle_prediction)
-        speech.start()
+        try:
+            speech.start()
+        except OSError as e:
+            print(f"Failed to start speech recognition: {e}")
 
     def __update_gui_info_label(self):
         self.__gui_events.set_info_text.emit(

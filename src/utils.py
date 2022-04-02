@@ -19,6 +19,10 @@ def disable_speaker():
     return "disable-speaker" in map(lambda arg: arg.lower(), sys.argv)
 
 
+def no_full_screen():
+    return "no-full-screen" in map(lambda arg: arg.lower(), sys.argv)
+
+
 def get_argument_value(argument_name: str):
     for arg in sys.argv:
         match = re.match(rf"{argument_name}=(.*)", arg)

@@ -128,3 +128,15 @@ else:
     class EPaper:
         def __init__(self):
             pass
+
+        def clear(self):
+            pass
+
+        def display_text(self, _: str):
+            pass
+
+        def update_points(self, _: int, __: int):
+            pass
+
+        def update_set_points(self, _: int, __: int):
+            pass
