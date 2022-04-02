@@ -47,7 +47,6 @@ class ScoreboardModule(ModuleBase):
 
     def __handle_point_increase_interim(self, left: int, right: int, _match: Match[str], prediction_id: int,
                                         final: bool):
-        print("Test1", left, right, prediction_id, final)
         if left > 0:
             if self.__points_for_left_player_prediction_id != prediction_id:
                 self.__points_for_left_player_prediction_id = prediction_id
@@ -68,7 +67,6 @@ class ScoreboardModule(ModuleBase):
             }))
 
     def __handle_point_increase_finalize(self, left: int, right: int, prediction_id: int):
-        print("Test2", left, right, prediction_id, len(self.__point_for_left_player_results), len(self.__point_for_right_player_results))
         for final in (True, False):
             if left > 0 and self.__points_for_left_player_prediction_id == prediction_id:
                 for result in self.__point_for_left_player_results:
