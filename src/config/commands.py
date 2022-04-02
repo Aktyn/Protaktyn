@@ -10,6 +10,7 @@ class Commands:
         start_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz|rozpocznij|zacznij) tablic[aąeę] punkt[oó]w"
         reset = r"(z?reset(uj)?|(wy)?zeruj) (punkty|wyniki|tablic[eę])"
         set_points = r".*(\s|^)([^\s]+)\s?(do|-)\s?([^\s]+).*"
+        easter_egg = r"(jajko|jajo|jajco)"
 
     class ROBOT:
         start_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz|rozpocznij|zacznij) (modu[łl] )?robota?"

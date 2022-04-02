@@ -1,35 +1,48 @@
 import re
 from typing import Match
-
 from src.config.commands import Commands
+from src.epaper.epaper import EPaper
 from src.gui.gui import GUIEvents
 from src.modules.moduleBase import ModuleBase
-from src.utils import loud_print
+from src.utils import loud_print, get_argument_value
 
 
 class ScoreboardModule(ModuleBase):
     def __init__(self, gui_events: GUIEvents):
         super().__init__(gui_events)
 
+        self.__epaper = EPaper()
         self.__points = (0, 0)
+        self.__set_points = (0, 0)
         self.__update_points(0, 0)
+        self.__current_set_points_prediction_id = None
+        self.__set_points_match_results: list[dict] = []
 
         super().register_command(Commands.SCOREBOARD.reset, self.__handle_reset)
-        super().register_command(Commands.SCOREBOARD.set_points, self.__handle_set_points)
+        super().register_command(Commands.SCOREBOARD.set_points, self.__handle_set_points_interim,
+                                 self.__handle_set_points_finalize)
+        super().register_command(Commands.SCOREBOARD.easter_egg, self.__handle_easter)
 
     def close(self):
         self._gui_events.scoreboard_view_hide.emit()
         super().close()
+        del self.__epaper
 
     def __update_points(self, p1: int, p2: int):
         self.__points = (p1, p2)
         self._gui_events.scoreboard_view_update_points.emit(p1, p2)
+        self.__epaper.update_points(p1, p2)
 
-    def __handle_reset(self, _):
+    def __update_set_points(self, p1: int, p2: int):
+        self.__set_points = (p1, p2)
+        # self._gui_events.scoreboard_view_update_set_points.emit(p1, p2) #TODO
+        self.__epaper.update_set_points(p1, p2)
+
+    def __handle_reset(self, *_args):
         loud_print("Resetting scoreboard")
         self.__update_points(0, 0)
 
-    def __handle_set_points(self, match: Match[str]):
+    def __handle_set_points_interim(self, match: Match[str], prediction_id: int, final: bool):
         groups = match.groups()
         if len(groups) < 4:
             return
@@ -40,13 +53,52 @@ class ScoreboardModule(ModuleBase):
         if val1 is None or val2 is None:
             return
 
-        self.__update_points(val1, val2)
+        sets_point = match.string.find("setach") != -1
+
+        if self.__current_set_points_prediction_id != prediction_id:
+            self.__current_set_points_prediction_id = prediction_id
+            self.__set_points_match_results = []
+        self.__set_points_match_results.append(dict({
+            "prediction_id": prediction_id,
+            "final": final,
+            "sets_point": sets_point,
+            "val1": val1,
+            "val2": val2
+        }))
+
+    def __handle_set_points_finalize(self, prediction_id: int):
+        if self.__current_set_points_prediction_id != prediction_id:
+            return
+
+        sets_point = False
+        for result in self.__set_points_match_results:
+            if result["prediction_id"] != prediction_id:
+                continue
+            if result["sets_point"]:
+                sets_point = True
+                break
+
+        # Deal with final results first
+        for final in (True, False):
+            for result in self.__set_points_match_results:
+                if result["final"] != final:
+                    continue
+
+                # NOTE that results should be sorted by most accurate first. Otherwise, it should be sorted here
+                if sets_point:
+                    self.__update_set_points(result["val1"], result["val2"])
+                else:
+                    self.__update_points(result["val1"], result["val2"])
+                return
+
+    def __handle_easter(self, *_args):
+        easter_text = get_argument_value("easter-text")
+        if easter_text:
+            self.__epaper.display_text(easter_text.replace("\\n", "\n"))
 
     @staticmethod
     def __parse_speach_number(word: str):
-        if re.match(r"\d+", word):
-            return int(word)
-        elif re.match(r"zer[oa]", word, re.IGNORECASE):
+        if re.match(r"zer[oa]", word, re.IGNORECASE):
             return 0
         elif re.match(r"(jeden|jednego)", word, re.IGNORECASE):
             return 1
@@ -88,5 +140,12 @@ class ScoreboardModule(ModuleBase):
             return 19
         elif re.match(r"(dwadzieścia|dwudziestu)", word, re.IGNORECASE):
             return 20
+        else:
+            try:
+                digits = re.match(r"(\d+)", word)
+                if digits is not None:
+                    return int(digits.group(0))
+            except ValueError:
+                return None
         # TODO: handle bigger numbers
         return None

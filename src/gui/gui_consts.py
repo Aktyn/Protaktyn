@@ -7,4 +7,4 @@ class GUIConsts:
     WINDOW_HEIGHT = 480
     BUTTON_WIDTH = 100
     TOP_BAR_HEIGHT = 30
-    FULL_SCREEN = False  # Set to True to run on production
+    FULL_SCREEN = True  # Set to True to run on production

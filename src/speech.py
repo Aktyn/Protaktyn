@@ -1,7 +1,12 @@
+import re
+import sys
 import time
 from threading import Thread
 from typing import Optional, Callable
 import speech_recognition as sr
+
+from src.speaker import speak
+from src.utils import disable_speaker
 
 
 class Speech:
@@ -88,6 +93,15 @@ class Speech:
             recorder = self.__Recorder(recognizer, microphone)
             recorder.adjust(self.__AMBIENT_NOISE_ADJUSTING_DURATION)
             recorder.start()
+
+            if not disable_speaker():
+                for arg in sys.argv:
+                    match = re.match(r"speak=(.*)", arg)
+                    if match and len(match.groups()) > 0:
+                        groups = match.groups()
+                        print("Speaking: " + groups[0])
+                        speak(groups[0], lang='pl', volume_decrease=0)
+                        break
 
             while True:
                 sample = recorder.get_next_sample()

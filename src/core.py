@@ -26,8 +26,8 @@ class Core(CommandsInterface):
 
         super().register_command(regex=Commands.exit, on_match=self.__handle_exit_command)
         super().register_command(regex=Commands.SCOREBOARD.start_module,
-                                 on_match=lambda _: self.__start_module(ScoreboardModule))
-        super().register_command(regex=Commands.ROBOT.start_module, on_match=lambda _: self.__start_module(RobotModule))
+                                 on_match=lambda *_args: self.__start_module(ScoreboardModule))
+        super().register_command(regex=Commands.ROBOT.start_module, on_match=lambda *_args: self.__start_module(RobotModule))
         super().register_command(regex=Commands.exit_current_module, on_match=self.__exit_current_module)
 
         speech = Speech(on_prediction_result=self.__handle_prediction)
@@ -53,13 +53,17 @@ class Core(CommandsInterface):
             transcript = result["transcript"]
 
             if self.__module is not None and not self.is_awaiting_confirmation():
-                self.__module.handle_command(text=transcript)
+                self.__module.handle_command(text=transcript, prediction_id=prediction_id, is_final=final)
 
-            self.handle_command(text=transcript)
+            self.handle_command(text=transcript, prediction_id=prediction_id, is_final=final)
+        if final:
+            if self.__module is not None:
+                self.__module.handle_command_finalized(prediction_id)
+            self.handle_command_finalized(prediction_id)
 
         self.__update_gui_info_label()
 
-    def __exit_current_module(self, _):
+    def __exit_current_module(self, *_args):
         if self.__module is None:
             loud_print("No module is currently running")
             return
@@ -79,9 +83,14 @@ class Core(CommandsInterface):
 
         loud_print("Running module: " + ModuleClass.__name__, True)
         self.__module = ModuleClass(self.__gui_events)
+        # Explicit class instantiation due to memory protection errors
+        # if ModuleClass == ScoreboardModule:
+        #     self.__module = ScoreboardModule(self.__gui_events)
+        # elif ModuleClass == RobotModule:
+        #     self.__module = RobotModule(self.__gui_events)
         self.__update_gui_info_label()
 
-    def __handle_exit_command(self, _):
+    def __handle_exit_command(self, *_args):
         self.__gui_events.show_confirmation_info.emit("Are you sure you want to exit?")
         super().register_confirmation_request(Commands.confirm, Commands.reject, self.__handle_exit_confirmation,
                                               self.__abort_exit)

@@ -3,6 +3,15 @@ from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QMainWindow
 
 from src.gui.gui_consts import GUIConsts
+from src.utils import show_gui
+
+if not show_gui():
+    from src.gui.gui_utils import MockPyQtSignal
+
+
+    class MockScoreboardViewEvents:
+        scoreboard_view_update_points = MockPyQtSignal()
+        scoreboard_view_hide = MockPyQtSignal()
 
 
 class ScoreboardViewEvents:

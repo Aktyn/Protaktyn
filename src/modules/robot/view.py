@@ -1,8 +1,16 @@
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtGui import QFont, QMouseEvent
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QMainWindow
 
 from src.gui.gui_consts import GUIConsts
+from src.utils import show_gui
+
+if not show_gui():
+    from src.gui.gui_utils import MockPyQtSignal
+
+    class MockRobotViewEvents:
+        robot_view_init = MockPyQtSignal()
+        robot_view_hide = MockPyQtSignal()
 
 
 class RobotViewEvents:
