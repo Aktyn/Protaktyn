@@ -50,10 +50,10 @@ class RobotModule(ModuleBase):
         elif direction == RobotModule.__Direction.BACKWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
-        elif direction == RobotModule.__Direction.LEFT:
+        elif direction == RobotModule.__Direction.RIGHT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
-        elif direction == RobotModule.__Direction.RIGHT:
+        elif direction == RobotModule.__Direction.LEFT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
         else:
