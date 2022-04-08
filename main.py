@@ -3,10 +3,13 @@
 """
 Raspberry Pi project code
 
+SETUP
 sudo apt install flac
 sudo apt install ffmpeg
 sudo apt-get install libportaudio0 libportaudio2 libportaudiocpp0 portaudio19-dev
 sudo pip3 install speechrecognition
+
+in case of libcblas.so.3 errors: sudo apt-get install libatlas-base-dev
 """
 
 from src.core import Core

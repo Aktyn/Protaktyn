@@ -8,6 +8,7 @@ from src.utils import show_gui
 if not show_gui():
     from src.gui.gui_utils import MockPyQtSignal
 
+
     class MockRobotViewEvents:
         robot_view_init = MockPyQtSignal()
         robot_view_hide = MockPyQtSignal()
@@ -16,6 +17,7 @@ if not show_gui():
 class RobotViewEvents:
     robot_view_init = QtCore.pyqtSignal(dict)
     robot_view_hide = QtCore.pyqtSignal()
+    robot_view_set_steering_button_active = QtCore.pyqtSignal(str, bool)
 
 
 class ButtonEx(QtWidgets.QPushButton):
@@ -40,6 +42,7 @@ class RobotView:
 
         events.robot_view_init.connect(lambda _: self.__init_view(_))
         events.robot_view_hide.connect(lambda: self.__handle_view_hide())
+        events.robot_view_set_steering_button_active.connect(self.__set_steering_button_active)
 
     def __init_view(self, steering_events: dict):
         if self.__is_view_active:
@@ -48,6 +51,7 @@ class RobotView:
         width = int(self.__window.width() / 3)
         height = int((self.__window.height() - GUIConsts.TOP_BAR_HEIGHT) / 3)
 
+        # TODO: circular joystick controls
         self.__control_buttons = dict({
             'forward': ButtonEx(self.__window),
             'backward': ButtonEx(self.__window),
@@ -61,7 +65,7 @@ class RobotView:
         self.__control_buttons['forward'].released.connect(lambda: steering_events['onForward'](False))
 
         self.__control_buttons['backward'].setText('↓')
-        self.__control_buttons['backward'].move(width, GUIConsts.TOP_BAR_HEIGHT + height * 2)
+        self.__control_buttons['backward'].move(width, GUIConsts.TOP_BAR_HEIGHT + height)
         self.__control_buttons['backward'].pressed.connect(lambda: steering_events['onBackward'](True))
         self.__control_buttons['backward'].released.connect(lambda: steering_events['onBackward'](False))
 
@@ -81,6 +85,7 @@ class RobotView:
             # btn.setAlignment(QtCore.Qt.AlignCenter)
             btn.setFont(QFont(None, 72))
             btn.font().setBold(True)
+            btn.setStyleSheet('color: #fff')
             btn.show()
 
         self.__is_view_active = True
@@ -91,3 +96,6 @@ class RobotView:
             btn.destroy(destroyWindow=True, destroySubWindows=True)
         self.__window.repaint()
         self.__is_view_active = False
+
+    def __set_steering_button_active(self, btn_name: str, is_active: bool):
+        self.__control_buttons[btn_name].setStyleSheet(f'color: {"#81C784" if is_active else "#fff"}')

@@ -16,3 +16,4 @@ class Commands:
 
     class ROBOT:
         start_module = r"(za[lł]aduj|uruchom|w[lł][aą]cz|rozpocznij|zacznij) (modu[łl] )?robota?"
+        target_cat = r"(atakuj|celuj|pod[ąa][żz]aj|jed[zź])\s*(w|za|na)?\s*kot(a|em)?"
