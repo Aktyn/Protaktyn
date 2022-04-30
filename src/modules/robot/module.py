@@ -41,6 +41,7 @@ class RobotModule(ModuleBase):
 
     def close(self):
         self._gui_events.robot_view_hide.emit()
+        del self.__wheels
         if self.__detector is not None:
             self.__detector.stop()
         super().close()
@@ -90,18 +91,21 @@ class RobotModule(ModuleBase):
             self._gui_events.robot_view_set_steering_button_active.emit(button_name, False)
 
     def __smart_movement_thread(self):
+        print("Smart movement thread started")
         if self.__detector is None:
             return
         detector_id = self.__detector.id()
 
+        next_action_delay = 3
         idle_time = 30.0
         rotation_interval = 15.0
-        rotation_duration = random.uniform(0.2, 1)  # must not be larger than rotation_interval
+        rotation_duration = 0
         rotation_direction = random.choice([-1, 1])
-        max_rotation_duration_towards_target = 0.5
-        moving_towards_target_duration = 0.5  # TODO: it can be adjusted according to recognition result rect area
+        max_rotation_duration_towards_target = 0.1
+        moving_towards_target_duration = 0.3  # TODO: it can be adjusted according to recognition result rect area
 
-        last_rotation_timestamp = 0
+        last_action_timestamp = 0
+        last_rotation_timestamp = datetime.now().timestamp()
         is_looking_for_target = False
         is_rotating_toward_target = False
         is_following_target = False
@@ -109,13 +113,18 @@ class RobotModule(ModuleBase):
         while self.__detector and self.__detector.id() == detector_id:
             now = datetime.now().timestamp()
 
-            last_target_detection_timestamp = self.__last_target_detection['timestamp']
+            # Wait some time after previous action
+            if now - last_action_timestamp < next_action_delay:
+                continue
+
+            last_target_detection_timestamp = 0 if self.__last_target_detection is None else \
+                self.__last_target_detection['timestamp']
 
             # If there is no target detected for given amount of time
             if self.__last_target_detection is None or now - last_target_detection_timestamp > idle_time:
                 if now - last_rotation_timestamp > rotation_interval:
                     last_rotation_timestamp = now
-                    rotation_duration = random.uniform(0.2, 1)
+                    rotation_duration = random.uniform(0.1, 0.4)  # must not be larger than rotation_interval
                     rotation_direction = random.choice([-1, 1])
                 elif now - last_rotation_timestamp < rotation_duration:
                     if not is_looking_for_target:
@@ -133,7 +142,7 @@ class RobotModule(ModuleBase):
                 rotation_duration_towards_target = abs(target_position_x) * max_rotation_duration_towards_target
 
                 # Rotate slightly towards target
-                if now - last_target_detection_timestamp < rotation_duration_towards_target:
+                if now - last_target_detection_timestamp < rotation_duration_towards_target and not is_following_target:
                     if not is_rotating_toward_target:
                         direction = -1 if target_position_x > 0.0 else 1
                         if direction == 1:
@@ -150,6 +159,7 @@ class RobotModule(ModuleBase):
                 elif is_following_target:
                     self.__handle_release()
                     is_following_target = False
+                    last_action_timestamp = now
 
     def __handle_target_detection(self, position: Tuple[float, float]):
         print("Target detected at position:", position)
@@ -167,6 +177,7 @@ class RobotModule(ModuleBase):
         self.__detector = ObjectDetector(self.__handle_target_detection)
         self.__detector.run(object_name)
 
-        if self.__movement_thread is not None:
+        if self.__movement_thread is None:
             self.__movement_thread = Thread(target=self.__smart_movement_thread)
             self.__movement_thread.daemon = True
+            self.__movement_thread.start()

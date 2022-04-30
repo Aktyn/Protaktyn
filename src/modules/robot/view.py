@@ -12,6 +12,7 @@ if not show_gui():
     class MockRobotViewEvents:
         robot_view_init = MockPyQtSignal()
         robot_view_hide = MockPyQtSignal()
+        robot_view_set_steering_button_active = MockPyQtSignal()
 
 
 class RobotViewEvents:

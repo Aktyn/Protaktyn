@@ -149,12 +149,12 @@ class ObjectDetector:
         self.__is_running = True
 
         self.__camera_preview_process = Thread(target=self.__camera_preview_thread)  # , args=(recognizer, microphone))
-        self.__camera_preview_process.start()
         self.__camera_preview_process.daemon = True
+        self.__camera_preview_process.start()
 
         self.__detection_process = Thread(target=self.__detection_thread)  # , args=(recognizer, microphone))
-        self.__detection_process.start()
         self.__detection_process.daemon = True
+        self.__detection_process.start()
 
     def __detect(self, input_image: np.ndarray) -> List[Detection]:
         image_height, image_width, _ = input_image.shape
@@ -183,7 +183,7 @@ class ObjectDetector:
 
             for detection in self.__detections:
                 if detection.categories[0].label in (
-                        'cat', 'dog', 'horse', 'sheep', 'cow', 'bear', 'zebra', 'teddy bear', 'person'):
+                        'cat', 'dog', 'horse', 'sheep', 'cow', 'bear', 'zebra', 'teddy bear', 'bottle'):  # , 'person'
                     image_height, image_width, _ = image.shape
                     center = (
                         ((detection.bounding_box.left + detection.bounding_box.right) / 2) / image_width * 2.0 - 1.0,
@@ -244,7 +244,11 @@ class ObjectDetector:
 
             if cv2.waitKey(1) == 27:
                 break
-            cv2.imshow('Object detector', image)
+            # noinspection PyBroadException
+            try:
+                cv2.imshow('Object detector', image)
+            except BaseException:
+                pass
 
         cap.release()
         cv2.destroyAllWindows()
