@@ -54,7 +54,7 @@ class Detection(NamedTuple):
 #   }.get(platform.system(), None)
 
 class ObjectDetector:
-    def __init__(self, on_detection_callback: Callable[[tuple[float, float]], None]):
+    def __init__(self, on_detection_callback: Callable[[tuple[float, float], float], None]):
         self.__id = uuid.uuid4().hex
 
         self.__on_detection_callback = on_detection_callback
@@ -189,7 +189,10 @@ class ObjectDetector:
                         ((detection.bounding_box.left + detection.bounding_box.right) / 2) / image_width * 2.0 - 1.0,
                         ((detection.bounding_box.top + detection.bounding_box.bottom) / 2) / image_height * 2.0 - 1.0
                     )
-                    self.__on_detection_callback(center)
+                    normalized_area = abs(
+                        detection.bounding_box.right - detection.bounding_box.left) / image_width * abs(
+                        detection.bounding_box.bottom - detection.bounding_box.top) / image_height
+                    self.__on_detection_callback(center, normalized_area)
 
     def __camera_preview_thread(self):
         import cv2

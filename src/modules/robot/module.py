@@ -97,12 +97,14 @@ class RobotModule(ModuleBase):
         detector_id = self.__detector.id()
 
         next_action_delay = 3
-        idle_time = 30.0
-        rotation_interval = 15.0
+        idle_time = 15.0
+        rotation_interval = 8.0
         rotation_duration = 0
-        rotation_direction = random.choice([-1, 1])
+        randomize_rotation_direction = False
+        rotation_direction = random.choice([-1 if randomize_rotation_direction else 1, 1])
         max_rotation_duration_towards_target = 0.1
-        moving_towards_target_duration = 0.3  # TODO: it can be adjusted according to recognition result rect area
+        min_moving_towards_target_duration = 0.2
+        max_moving_towards_target_duration = 1.5
 
         last_action_timestamp = 0
         last_rotation_timestamp = datetime.now().timestamp()
@@ -124,8 +126,9 @@ class RobotModule(ModuleBase):
             if self.__last_target_detection is None or now - last_target_detection_timestamp > idle_time:
                 if now - last_rotation_timestamp > rotation_interval:
                     last_rotation_timestamp = now
-                    rotation_duration = random.uniform(0.1, 0.4)  # must not be larger than rotation_interval
-                    rotation_direction = random.choice([-1, 1])
+                    rotation_duration = random.uniform(1, 3)  # must not be larger than rotation_interval
+                    rotation_direction = random.choice([-1 if randomize_rotation_direction else 1, 1])
+                    is_looking_for_target = False
                 elif now - last_rotation_timestamp < rotation_duration:
                     if not is_looking_for_target:
                         if rotation_direction == 1:
@@ -139,7 +142,11 @@ class RobotModule(ModuleBase):
             # React to detected target position by turning robot towards it
             else:
                 target_position_x = self.__last_target_detection['position'][0]
+                estimated_distance = min(1, max(0, 1 - self.__last_target_detection['area']))
+
                 rotation_duration_towards_target = abs(target_position_x) * max_rotation_duration_towards_target
+                moving_towards_target_duration = max(min_moving_towards_target_duration,
+                                                     estimated_distance * max_moving_towards_target_duration)
 
                 # Rotate slightly towards target
                 if now - last_target_detection_timestamp < rotation_duration_towards_target and not is_following_target:
@@ -161,11 +168,12 @@ class RobotModule(ModuleBase):
                     is_following_target = False
                     last_action_timestamp = now
 
-    def __handle_target_detection(self, position: Tuple[float, float]):
-        print("Target detected at position:", position)
+    def __handle_target_detection(self, position: Tuple[float, float], area: float):
+        print("Target detected at position:", position, "with area:", area)
 
         self.__last_target_detection = {
             'position': position,
+            'area': area,
             'timestamp': datetime.now().timestamp()
         }
 
