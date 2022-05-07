@@ -5,19 +5,28 @@ from threading import Thread
 from typing import Optional, Tuple
 
 from src.config.commands import Commands
-from src.gui.gui import GUIEvents
+from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
+from src.modules.robot.view import RobotView
 from src.modules.robot.wheelsController import WheelsController
-from src.object_detection.objectDetector import ObjectDetector
-from src.utils import loud_print
+from src.object_detection.objectDetector import ObjectDetector, Detection
+from src.common.utils import loud_print
 
 
 class RobotModule(ModuleBase):
     class __Direction(Enum):
         FORWARD, BACKWARD, LEFT, RIGHT = range(4)
 
-    def __init__(self, gui_events: GUIEvents):
-        super().__init__(gui_events)
+    def __init__(self, gui: GUI):
+        super().__init__(gui)
+
+        self.__view = RobotView(
+            on_forward=lambda enable: self.__handle_direction_change(RobotModule.__Direction.FORWARD, enable),
+            on_backward=lambda enable: self.__handle_direction_change(RobotModule.__Direction.BACKWARD, enable),
+            on_turn_left=lambda enable: self.__handle_direction_change(RobotModule.__Direction.LEFT, enable),
+            on_turn_right=lambda enable: self.__handle_direction_change(RobotModule.__Direction.RIGHT, enable)
+        )
+        self._gui.set_view(self.__view)
 
         self.__detector: Optional[ObjectDetector] = None
         self.__movement_thread: Optional[Thread] = None
@@ -27,23 +36,18 @@ class RobotModule(ModuleBase):
         self.__current_direction: Optional[RobotModule.__Direction] = None
         self.__next_direction: Optional[RobotModule.__Direction] = None
 
-        self._gui_events.robot_view_init.emit({
-            "onForward": lambda enable: self.__handle_direction_change(RobotModule.__Direction.FORWARD, enable),
-            "onBackward": lambda enable: self.__handle_direction_change(RobotModule.__Direction.BACKWARD, enable),
-            "onTurnLeft": lambda enable: self.__handle_direction_change(RobotModule.__Direction.LEFT, enable),
-            "onTurnRight": lambda enable: self.__handle_direction_change(RobotModule.__Direction.RIGHT, enable)
-        })
-
-        super().register_command(Commands.ROBOT.target_cat, lambda *args: self.__start_targeting_object('cat'))
+        super().register_command(Commands.ROBOT.target_cat,
+                                 lambda *args: self.__start_targeting_object('cat', 'dog', 'horse', 'sheep', 'cow',
+                                                                             # , 'person'
+                                                                             'bear', 'zebra', 'teddy bear', 'bottle'))
 
         # TEMP!!!
-        self.__start_targeting_object('cat')
+        # self.__start_targeting_object('cat')
 
     def close(self):
-        self._gui_events.robot_view_hide.emit()
-        del self.__wheels
+        self.__wheels.close()
         if self.__detector is not None:
-            self.__detector.stop()
+            self.__detector.close()
         super().close()
 
     def __handle_direction_change(self, direction: __Direction, enable: bool, force=False):
@@ -63,19 +67,19 @@ class RobotModule(ModuleBase):
         if direction == RobotModule.__Direction.FORWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
-            self._gui_events.robot_view_set_steering_button_active.emit('forward', True)
+            self.__view.set_steering_button_active('forward', True)
         elif direction == RobotModule.__Direction.BACKWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
-            self._gui_events.robot_view_set_steering_button_active.emit('backward', True)
+            self.__view.set_steering_button_active('backward', True)
         elif direction == RobotModule.__Direction.RIGHT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
-            self._gui_events.robot_view_set_steering_button_active.emit('right', True)
+            self.__view.set_steering_button_active('right', True)
         elif direction == RobotModule.__Direction.LEFT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
-            self._gui_events.robot_view_set_steering_button_active.emit('left', True)
+            self.__view.set_steering_button_active('left', True)
         else:
             raise ValueError("Invalid direction")
 
@@ -88,7 +92,7 @@ class RobotModule(ModuleBase):
             return
         self.__wheels.stop_wheels()
         for button_name in ['forward', 'backward', 'left', 'right']:
-            self._gui_events.robot_view_set_steering_button_active.emit(button_name, False)
+            self.__view.set_steering_button_active(button_name, False)
 
     def __smart_movement_thread(self):
         print("Smart movement thread started")
@@ -100,7 +104,7 @@ class RobotModule(ModuleBase):
         idle_time = 15.0
         rotation_interval = 8.0
         rotation_duration = 0
-        randomize_rotation_direction = False
+        randomize_rotation_direction = True
         rotation_direction = random.choice([-1 if randomize_rotation_direction else 1, 1])
         max_rotation_duration_towards_target = 0.1
         min_moving_towards_target_duration = 0.2
@@ -168,22 +172,39 @@ class RobotModule(ModuleBase):
                     is_following_target = False
                     last_action_timestamp = now
 
-    def __handle_target_detection(self, position: Tuple[float, float], area: float):
-        print("Target detected at position:", position, "with area:", area)
+    def __handle_target_detection(self, detections: list[Detection]):  # position: Tuple[float, float], area: float):
+        self.__view.set_detections(detections)
+
+        if len(detections) <= 0:
+            return
+
+        best_detection = detections[0]
+
+        gui_width, gui_height = self._gui.get_size()
+        center = (
+            ((best_detection.bounding_box.left + best_detection.bounding_box.right) / 2) / gui_width * 2.0 - 1.0,
+            ((best_detection.bounding_box.top + best_detection.bounding_box.bottom) / 2) / gui_height * 2.0 - 1.0
+        )
+        normalized_area = abs(
+            best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * abs(
+            best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
+
+        print("Target detected at position:", center, "with area:", normalized_area)
 
         self.__last_target_detection = {
-            'position': position,
-            'area': area,
+            'position': center,
+            'area': normalized_area,
             'timestamp': datetime.now().timestamp()
         }
 
-    def __start_targeting_object(self, object_name: str):
+    def __start_targeting_object(self, *object_names: str):
         if self.__detector is not None:
             print("There is already a detector running")
             return
-        loud_print(f"Starting targeting object: {object_name}", True)
-        self.__detector = ObjectDetector(self.__handle_target_detection)
-        self.__detector.run(object_name)
+        loud_print(f"Starting targeting objects: {object_names}", True)
+        self.__detector = ObjectDetector(self.__handle_target_detection, self._gui, *object_names)
+
+        self.__view.toggle_fill_buttons(False)
 
         if self.__movement_thread is None:
             self.__movement_thread = Thread(target=self.__smart_movement_thread)

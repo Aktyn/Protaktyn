@@ -20,10 +20,9 @@ Raspberry Pi project code with multiple functionality and speech control
 Author: Aktyn
         
 Available arguments:
-    nogui - disables PyQt5 GUI
-    no-full-screen - disable PyQT5 full-screen mode window
+    nogui - doesn't display any GUI window
     use-epaper - uses ePaper display
     disable-speaker - disables voice generator
-    speak="Words to say at start" - automatically speaks given command
+    start-module="MODULE NAME" - automatically starts specified module (available modules: scoreboard, robot)
 ''')
     Core()

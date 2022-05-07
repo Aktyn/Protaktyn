@@ -47,7 +47,7 @@ class WheelsController:
         self.__p1 = GPIO.PWM(self.__en1, 1000)
         self.__p2 = GPIO.PWM(self.__en2, 1000)
 
-    def __del__(self):
+    def close(self):
         self.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.STOPPED)
         self.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.STOPPED)
         GPIO.cleanup()

@@ -1,14 +1,15 @@
+import cv2
 import json
-import time
 import os
 import uuid
-
 import numpy as np
+
 from threading import Thread
 from typing import Optional, List, NamedTuple, Callable
 from tflite_support import metadata
 
-# pylint: disable=g-import-not-at-top
+from src.gui.core.gui import GUI
+
 try:
     # Import TFLite interpreter from tflite_runtime package if it's available.
     from tflite_runtime.interpreter import Interpreter
@@ -54,17 +55,15 @@ class Detection(NamedTuple):
 #   }.get(platform.system(), None)
 
 class ObjectDetector:
-    def __init__(self, on_detection_callback: Callable[[tuple[float, float], float], None]):
+    def __init__(self, on_detection_callback: Callable[[list[Detection]], None], gui: GUI,
+                 *target_categories: str):
         self.__id = uuid.uuid4().hex
 
         self.__on_detection_callback = on_detection_callback
+        self.__gui = gui
+        self.__target_categories = target_categories
 
-        self.__is_running = False
-        self.__last_frames: List[any] = []
-        self.__max_frames = 60
-        self.__camera_preview_process: Optional[Thread] = None
         self.__detection_process: Optional[Thread] = None
-        self.__detections: List[Detection] = []
 
         label_deny_list: Optional[List[str]] = None
         label_allow_list: Optional[List[str]] = None
@@ -78,12 +77,6 @@ class ObjectDetector:
             'label_allow_list': label_allow_list,
         })
 
-        self.__MARGIN = 10  # pixels
-        self.__ROW_SIZE = 10  # pixels
-        self.__FONT_SIZE = 1
-        self.__FONT_THICKNESS = 1
-        self.__TEXT_COLOR = (64, 64, 255)  # red
-
         # https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1?lite-format=tflite
         model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'efficientdet_lite0.tflite')
 
@@ -96,8 +89,6 @@ class ObjectDetector:
             if option['options_type'] == 'NormalizationOptions':
                 self.__mean = option['options']['mean'][0]
                 self.__std = option['options']['std'][0]
-        # self.__mean = mean
-        # self.__std = std
 
         # Load label list from metadata.
         file_name = displayer.get_packed_associated_file_list()[0]
@@ -142,19 +133,21 @@ class ObjectDetector:
         self.__input_size = input_detail['shape'][2], input_detail['shape'][1]
         self.__is_quantized_input = input_detail['dtype'] == np.uint8
 
-    def id(self):
-        return self.__id
+        # --- RUN --- #
+        self.__gui.start_camera_preview((640, 360))
 
-    def run(self, _object_name: str):
         self.__is_running = True
 
-        self.__camera_preview_process = Thread(target=self.__camera_preview_thread)  # , args=(recognizer, microphone))
-        self.__camera_preview_process.daemon = True
-        self.__camera_preview_process.start()
-
-        self.__detection_process = Thread(target=self.__detection_thread)  # , args=(recognizer, microphone))
-        self.__detection_process.daemon = True
+        self.__detection_process = Thread(target=self.__detection_thread, daemon=True)
         self.__detection_process.start()
+
+    def close(self):
+        self.__is_running = False
+        if self.__detection_process is not None:
+            self.__detection_process.join()
+
+    def id(self):
+        return self.__id
 
     def __detect(self, input_image: np.ndarray) -> List[Detection]:
         image_height, image_width, _ = input_image.shape
@@ -174,92 +167,14 @@ class ObjectDetector:
 
     def __detection_thread(self):
         while self.__is_running:
-            if len(self.__last_frames) == 0:
+            image = self.__gui.get_last_camera_frame()
+            if image is None:
                 continue
-            image = self.__last_frames[len(self.__last_frames) - 1]
-            self.__detections = self.__detect(image)
-            # print("Detections count:", len(self.__detections))
-            self.__visualize(image, self.__detections)
 
-            for detection in self.__detections:
-                if detection.categories[0].label in (
-                        'cat', 'dog', 'horse', 'sheep', 'cow', 'bear', 'zebra', 'teddy bear', 'bottle'):  # , 'person'
-                    image_height, image_width, _ = image.shape
-                    center = (
-                        ((detection.bounding_box.left + detection.bounding_box.right) / 2) / image_width * 2.0 - 1.0,
-                        ((detection.bounding_box.top + detection.bounding_box.bottom) / 2) / image_height * 2.0 - 1.0
-                    )
-                    normalized_area = abs(
-                        detection.bounding_box.right - detection.bounding_box.left) / image_width * abs(
-                        detection.bounding_box.bottom - detection.bounding_box.top) / image_height
-                    self.__on_detection_callback(center, normalized_area)
-
-    def __camera_preview_thread(self):
-        import cv2
-
-        camera_id = 0
-        width = 640
-        height = 480
-        counter, fps = 0, 0
-        start_time = time.time()
-
-        cap = cv2.VideoCapture(camera_id)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-
-        # Visualization parameters
-        row_size = 20  # pixels
-        left_margin = 24  # pixels
-        text_color = (0, 0, 255)  # red
-        font_size = 1
-        font_thickness = 1
-        fps_avg_frame_count = 10
-
-        while cap.isOpened() and self.__is_running:
-            success, image = cap.read()
-            if not success:
-                print('ERROR: Unable to read from webcam. Please verify your webcam settings.')
-                break
-
-            counter += 1
-            # image = cv2.flip(image, 1)
-
-            self.__last_frames.append(image)
-            if len(self.__last_frames) > self.__max_frames:
-                self.__last_frames.pop(0)
-
-            # Run object detection estimation using the model.
-            # detections = self.__detect(image)
-            # print("Detections count:", len(detections))
-            self.__visualize(image, self.__detections)
-
-            # Calculate the FPS
-            if counter % fps_avg_frame_count == 0:
-                end_time = time.time()
-                fps = fps_avg_frame_count / (end_time - start_time)
-                start_time = time.time()
-
-            # Show the FPS
-            fps_text = 'FPS = {:.1f}'.format(fps)
-            text_location = (left_margin, row_size)
-            cv2.putText(image, fps_text, text_location, cv2.FONT_HERSHEY_PLAIN,
-                        font_size, text_color, font_thickness)
-
-            if cv2.waitKey(1) == 27:
-                break
-            # noinspection PyBroadException
-            try:
-                cv2.imshow('Object detector', image)
-            except BaseException:
-                pass
-
-        cap.release()
-        cv2.destroyAllWindows()
-        self.__is_running = False
+            detections = self.__detect(image)
+            self.__on_detection_callback(list(filter(lambda d: d.categories[0].label in self.__target_categories, detections)))
 
     def __preprocess(self, input_image: np.ndarray) -> np.ndarray:
-        import cv2
-
         # Resize the input
         input_tensor = cv2.resize(input_image, self.__input_size)
 
@@ -305,57 +220,24 @@ class ObjectDetector:
         # Sort detection results by score ascending
         sorted_results = sorted(results, key=lambda detection: detection.categories[0].score, reverse=True)
 
+        return sorted_results
+
         # Filter out detections in deny list
-        filtered_results = sorted_results
-        if self.__options["label_deny_list"] is not None:
-            filtered_results = list(
-                filter(lambda detection: detection.categories[0].label not in self.__options["label_deny_list"],
-                       filtered_results))
-
-        # Keep only detections in allow list
-        if self.__options["label_allow_list"] is not None:
-            filtered_results = list(
-                filter(lambda detection: detection.categories[0].label in self.__options["label_allow_list"],
-                       filtered_results))
-
-        # Only return maximum of max_results detection.
-        if self.__options["max_results"] > 0:
-            result_count = min(len(filtered_results), self.__options["max_results"])
-            filtered_results = filtered_results[:result_count]
-
-        return filtered_results
-
-    def __visualize(self, image: np.ndarray, detections: List[Detection]) -> np.ndarray:
-        import cv2
-
-        for detection in detections:
-            # Draw bounding_box
-            start_point = detection.bounding_box.left, detection.bounding_box.top
-            end_point = detection.bounding_box.right, detection.bounding_box.bottom
-            cv2.rectangle(image, start_point, end_point, self.__TEXT_COLOR, 3)
-
-            # Draw center point
-            center = (
-                int((detection.bounding_box.left + detection.bounding_box.right) / 2),
-                int((detection.bounding_box.top + detection.bounding_box.bottom) / 2)
-            )
-            cv2.circle(image, center, 4, self.__TEXT_COLOR, -1)
-
-            # Draw label and score
-            category = detection.categories[0]
-            class_name = category.label
-            probability = round(category.score, 2)
-            result_text = class_name + ' (' + str(probability) + ')'
-            text_location = (self.__MARGIN + detection.bounding_box.left,
-                             self.__MARGIN + self.__ROW_SIZE + detection.bounding_box.top)
-            cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
-                        self.__FONT_SIZE, self.__TEXT_COLOR, self.__FONT_THICKNESS)
-
-        return image
-
-    def stop(self):
-        self.__is_running = False
-        if self.__detection_process is not None:
-            self.__detection_process.join()
-        if self.__camera_preview_process is not None:
-            self.__camera_preview_process.join()
+        # filtered_results = sorted_results
+        # if self.__options["label_deny_list"] is not None:
+        #     filtered_results = list(
+        #         filter(lambda detection: detection.categories[0].label not in self.__options["label_deny_list"],
+        #                filtered_results))
+        #
+        # # Keep only detections in allow list
+        # if self.__options["label_allow_list"] is not None:
+        #     filtered_results = list(
+        #         filter(lambda detection: detection.categories[0].label in self.__options["label_allow_list"],
+        #                filtered_results))
+        #
+        # # Only return maximum of max_results detection.
+        # if self.__options["max_results"] > 0:
+        #     result_count = min(len(filtered_results), self.__options["max_results"])
+        #     filtered_results = filtered_results[:result_count]
+        #
+        # return filtered_results

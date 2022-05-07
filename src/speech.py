@@ -1,12 +1,7 @@
-import re
-import sys
 import time
 from threading import Thread
 from typing import Optional, Callable
 import speech_recognition as sr
-
-from src.speaker import speak
-from src.utils import disable_speaker
 
 
 class Speech:
@@ -21,6 +16,7 @@ class Speech:
         __SAMPLE_DURATION = 1.5
 
         def __init__(self, recognizer: sr.Recognizer, microphone: sr.Microphone):
+            self.__running = False
             self.__recording_process: Optional[Thread] = None
             self.__recognizer = recognizer
             self.__microphone = microphone
@@ -32,14 +28,17 @@ class Speech:
             print("Adjusted")
 
         def start(self):
+            self.__running = True
             self.__recording_process = Thread(target=self.__recording_procedure)  # , args=(recognizer, microphone))
+            self.__recording_process.daemon = True
             self.__recording_process.start()
 
         def stop(self):
+            self.__running = False
             self.__recording_process.join()
 
         def __recording_procedure(self):
-            while True:
+            while self.__running:
                 sample = self.__recognizer.record(self.__microphone, self.__SAMPLE_DURATION)
                 self.__samples.append(sample)
 
@@ -54,6 +53,8 @@ class Speech:
 
     def __init__(self, on_prediction_result: Callable[[int, dict, bool, int], None]):
         self.__on_prediction_result = on_prediction_result
+        self.__running = False
+        self.__recorder: Optional[Speech.__Recorder] = None
 
     @staticmethod
     def __get_prediction(recognizer: sr.Recognizer, samples: list[sr.AudioData]) -> Optional[dict]:
@@ -85,26 +86,19 @@ class Speech:
             return None
 
     def start(self):
+        self.__running = True
+
         recognizer = sr.Recognizer()
         with sr.Microphone() as microphone:
             previous_sample: Optional[sr.AudioData] = None
             predictions_streak: list[sr.AudioData] = []
             prediction_id = 0
-            recorder = self.__Recorder(recognizer, microphone)
-            recorder.adjust(self.__AMBIENT_NOISE_ADJUSTING_DURATION)
-            recorder.start()
+            self.__recorder = self.__Recorder(recognizer, microphone)
+            self.__recorder.adjust(self.__AMBIENT_NOISE_ADJUSTING_DURATION)
+            self.__recorder.start()
 
-            if not disable_speaker():
-                for arg in sys.argv:
-                    match = re.match(r"speak=(.*)", arg)
-                    if match and len(match.groups()) > 0:
-                        groups = match.groups()
-                        print("Speaking: " + groups[0])
-                        speak(groups[0], lang='pl', volume_decrease=0)
-                        break
-
-            while True:
-                sample = recorder.get_next_sample()
+            while self.__running:
+                sample = self.__recorder.get_next_sample()
                 interim_prediction = self.__get_prediction(recognizer, [sample])
 
                 if interim_prediction is None or len(interim_prediction) == 0 or len(
@@ -131,7 +125,7 @@ class Speech:
                     predictions_streak.append(sample)
 
                     if not printed:
-                        if recorder.get_queue_size() > self.__MAX_QUEUE_SAMPLES_SIZE:
+                        if self.__recorder and self.__recorder.get_queue_size() > self.__MAX_QUEUE_SAMPLES_SIZE:
                             print("Queue size is too big. Skipping combined interim prediction")
                             self.__on_prediction_result(prediction_id, interim_prediction, False, 1)
                         else:
@@ -141,3 +135,8 @@ class Speech:
                                                             len(predictions_streak))
 
                 previous_sample = sample
+
+    def stop(self):
+        self.__recorder.stop()
+        self.__recorder = None
+        self.__running = False

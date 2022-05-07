@@ -1,6 +1,5 @@
 from typing import Optional
-
-from src.utils import use_epaper
+from src.common.utils import use_epaper
 
 if use_epaper():
     import os
@@ -39,7 +38,7 @@ if use_epaper():
             self.update_points(0, 0)
             self.update_set_points(0, 0)
 
-        def __del__(self):
+        def close(self):
             print("Putting e-paper display to sleep...")
             self.__epd.sleep()
 

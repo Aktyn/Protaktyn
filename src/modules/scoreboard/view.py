@@ -1,98 +1,54 @@
-from typing import Callable
-
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QMainWindow
-
-from src.gui.gui_consts import GUIConsts
-from src.utils import show_gui
-
-if not show_gui():
-    from src.gui.gui_utils import MockPyQtSignal
+from typing import Callable, Optional
+from src.gui.core.button import Button
+from src.gui.core.label import Label
+from src.gui.core.gui import GUI
+from src.gui.views.view_base import ViewBase
 
 
-    class MockScoreboardViewEvents:
-        scoreboard_view_init = MockPyQtSignal()
-        scoreboard_view_hide = MockPyQtSignal()
-        scoreboard_view_update_points = MockPyQtSignal()
-        scoreboard_view_update_set_points = MockPyQtSignal()
+class ScoreboardView(ViewBase):
+    def __init__(self, on_left_player_point: Callable, on_right_player_point: Callable):
+        self.__on_left_player_point = on_left_player_point
+        self.__on_right_player_point = on_right_player_point
+        self.__gui: Optional[GUI] = None
 
+        # TODO: left and right align for point labels
+        self.__left_points_label = Label(text='0', pos=(0, 0), font_size=8)
+        self.__right_points_label = Label(text='0', pos=(0, 0), font_size=8)
 
-class ScoreboardViewEvents:
-    scoreboard_view_init = QtCore.pyqtSignal(dict)
-    scoreboard_view_hide = QtCore.pyqtSignal()
-    scoreboard_view_update_points = QtCore.pyqtSignal(int, int)
-    scoreboard_view_update_set_points = QtCore.pyqtSignal(int, int)
+        self.__left_set_points_label = Label(text='0', pos=(0, 0), font_size=2, font_thickness=1)
+        self.__right_set_points_label = Label(text='0', pos=(0, 0), font_size=2, font_thickness=1)
 
+    def load(self, gui: GUI):
+        self.__gui = gui
+        width, height = gui.get_size()
 
-class PointsLabel(QtWidgets.QLabel):
-    def __init__(self, parent: QMainWindow):
-        super().__init__(parent)
-        super().setAlignment(QtCore.Qt.AlignCenter)
+        self.__left_points_label.set_pos((width // 2 - 100, height // 2))
+        self.__right_points_label.set_pos((width // 2 + 100, height // 2))
 
+        self.__left_set_points_label.set_pos((width // 2 - 30, height - 50))
+        self.__right_set_points_label.set_pos((width // 2 + 30, height - 50))
 
-class ScoreboardView:
-    def __init__(self, window: QMainWindow, events: ScoreboardViewEvents):
-        self.__window = window
-        self.__is_view_active = False
+        gui.add_widgets(
+            Button(text='Add point to left', pos=(width // 2 - 160, 40), padding=16,
+                   on_click=self.__on_left_player_point, font_size=1),
+            Button(text='Add point to right', pos=(width // 2 + 160, 40), padding=16,
+                   on_click=self.__on_right_player_point, font_size=1),
 
-        events.scoreboard_view_init.connect(self.__init_view)
-        events.scoreboard_view_hide.connect(self.__handle_view_hide)
-        events.scoreboard_view_update_points.connect(lambda p1, p2: self.__handle_update_points(p1, p2))
-        events.scoreboard_view_update_set_points.connect(lambda p1, p2: self.__handle_update_set_points(p1, p2))
+            self.__left_points_label,
+            Label(text='|', pos=(width // 2, height // 2), font_size=8),  # Points separator
+            self.__right_points_label,
 
-    def __init_view(self, point_increase_events: dict):
-        self.__points_label = PointsLabel(self.__window)
-        self.__points_label.move(0, GUIConsts.TOP_BAR_HEIGHT)
-        self.__points_label.setFixedWidth(self.__window.width())
-        self.__points_label.setFixedHeight(self.__window.height() - GUIConsts.TOP_BAR_HEIGHT)
-        self.__points_label.setFont(QFont(None, 72))
-        self.__points_label.font().setBold(True)
-        self.__points_label.show()
+            self.__left_set_points_label,
+            Label(text='|', pos=(width // 2, height - 50), font_size=2, font_thickness=1),  # Set points separator
+            self.__right_set_points_label
+        )
 
-        set_points_label_height = 100
-        self.__set_points_label = PointsLabel(self.__window)
-        self.__set_points_label.move(0, self.__window.height() - set_points_label_height)
-        self.__set_points_label.setFixedWidth(self.__window.width())
-        self.__set_points_label.setFixedHeight(set_points_label_height)
-        self.__set_points_label.setFont(QFont(None, 48))
-        self.__set_points_label.font().setBold(True)
-        self.__set_points_label.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignBottom)
-        self.__set_points_label.show()
+    def update_points(self, left_player_points: int, right_player_points: int):
+        self.__left_points_label.set_text(str(left_player_points))
+        self.__right_points_label.set_text(str(right_player_points))
+        self.__gui.redraw()
 
-        btn_height = 64
-
-        self.__left_player_point_btn = QtWidgets.QPushButton(self.__window)
-        self.__left_player_point_btn.move(0, GUIConsts.TOP_BAR_HEIGHT)
-        self.__left_player_point_btn.setText("Add point to left")
-        self.__left_player_point_btn.clicked.connect(lambda: point_increase_events["on_left_player_point"]())
-
-        self.__right_player_point_btn = QtWidgets.QPushButton(self.__window)
-        self.__right_player_point_btn.move(self.__window.width() // 2, GUIConsts.TOP_BAR_HEIGHT)
-        self.__right_player_point_btn.setText("Add point to right")
-        self.__right_player_point_btn.clicked.connect(lambda: point_increase_events["on_right_player_point"]())
-
-        for btn in [self.__left_player_point_btn, self.__right_player_point_btn]:
-            btn.setFixedWidth(self.__window.width() // 2)
-            btn.setFixedHeight(btn_height)
-            btn.setFont(QFont(None, 24))
-            btn.font().setBold(True)
-            btn.show()
-
-        self.__is_view_active = True
-
-    def __handle_view_hide(self):
-        self.__points_label.hide()
-        self.__points_label.destroy(destroyWindow=True, destroySubWindows=True)
-        self.__window.repaint()
-        self.__is_view_active = False
-
-    def __handle_update_points(self, p1: int, p2: int):
-        if not self.__is_view_active:
-            return
-        self.__points_label.setText(f"{p1 if p1 >= 10 else ' ' + str(p1)} | {p2 if p2 >= 10 else str(p2) + ' '}")
-
-    def __handle_update_set_points(self, p1: int, p2: int):
-        if not self.__is_view_active:
-            return
-        self.__set_points_label.setText(f"{p1} | {p2}")
+    def update_set_points(self, left_player_set_points: int, right_player_set_points: int):
+        self.__left_set_points_label.set_text(str(left_player_set_points))
+        self.__right_set_points_label.set_text(str(right_player_set_points))
+        self.__gui.redraw()

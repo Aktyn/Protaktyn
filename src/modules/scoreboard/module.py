@@ -2,22 +2,23 @@ import re
 from typing import Match, Optional
 from src.config.commands import Commands
 from src.epaper.epaper import EPaper
-from src.gui.gui import GUIEvents
+from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
-from src.utils import loud_print, get_argument_value
+from src.common.utils import loud_print, get_argument_value
+from src.modules.scoreboard.view import ScoreboardView
 
 
 class ScoreboardModule(ModuleBase):
-    def __init__(self, gui_events: GUIEvents):
-        super().__init__(gui_events)
+    def __init__(self, gui: GUI):
+        super().__init__(gui)
+
+        self.__view = ScoreboardView(on_left_player_point=lambda: self.__handle_point_increase(1, 0),
+                                     on_right_player_point=lambda: self.__handle_point_increase(0, 1))
+        self._gui.set_view(self.__view)
 
         self.__epaper = EPaper()
         self.__points = (0, 0)
         self.__set_points = (0, 0)
-        self._gui_events.scoreboard_view_init.emit({
-            "on_left_player_point": lambda: self.__handle_point_increase(1, 0),
-            "on_right_player_point": lambda: self.__handle_point_increase(0, 1)
-        })
 
         self.__update_points(0, 0)
         self.__current_set_points_prediction_id: Optional[int] = None
@@ -41,9 +42,8 @@ class ScoreboardModule(ModuleBase):
         super().register_command(Commands.SCOREBOARD.easter_egg, self.__handle_easter)
 
     def close(self):
-        self._gui_events.scoreboard_view_hide.emit()
         super().close()
-        del self.__epaper
+        self.__epaper.close()
 
     def __handle_point_increase_interim(self, left: int, right: int, _match: Match[str], prediction_id: int,
                                         final: bool):
@@ -95,12 +95,12 @@ class ScoreboardModule(ModuleBase):
 
     def __update_points(self, p1: int, p2: int):
         self.__points = (p1, p2)
-        self._gui_events.scoreboard_view_update_points.emit(p1, p2)
+        self.__view.update_points(p1, p2)
         self.__epaper.update_points(p1, p2)
 
     def __update_set_points(self, p1: int, p2: int):
         self.__set_points = (p1, p2)
-        self._gui_events.scoreboard_view_update_set_points.emit(p1, p2)
+        self.__view.update_set_points(p1, p2)
         self.__epaper.update_set_points(p1, p2)
 
     def __handle_reset(self, *_args):

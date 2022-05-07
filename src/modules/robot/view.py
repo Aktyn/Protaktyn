@@ -1,102 +1,112 @@
-from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QMainWindow
-
-from src.gui.gui_consts import GUIConsts
-from src.utils import show_gui
-
-if not show_gui():
-    from src.gui.gui_utils import MockPyQtSignal
-
-
-    class MockRobotViewEvents:
-        robot_view_init = MockPyQtSignal()
-        robot_view_hide = MockPyQtSignal()
-        robot_view_set_steering_button_active = MockPyQtSignal()
+from typing import Callable, Optional
+from src.gui.core.button import Button
+from src.gui.core.gui import GUI
+from src.gui.core.gui_consts import GUIConsts
+from src.gui.core.label import Label
+from src.gui.core.widget import Widget
+from src.gui.views.view_base import ViewBase
+from src.object_detection.objectDetector import Detection
 
 
-class RobotViewEvents:
-    robot_view_init = QtCore.pyqtSignal(dict)
-    robot_view_hide = QtCore.pyqtSignal()
-    robot_view_set_steering_button_active = QtCore.pyqtSignal(str, bool)
+class RobotView(ViewBase):
+    def __init__(self, on_forward: Callable[[bool], any], on_backward: Callable[[bool], any],
+                 on_turn_left: Callable[[bool], any], on_turn_right: Callable[[bool], any]):
+        self.__on_forward = on_forward
+        self.__on_backward = on_backward
+        self.__on_turn_left = on_turn_left
+        self.__on_turn_right = on_turn_right
+        self.__gui: Optional[GUI] = None
+        self.__detection_widgets: list[Widget] = []
 
+        # ↑↓↶↷
+        self.__button_forward = Button(text='Forward', pos=(0, 0), font_size=1,
+                                       on_mouse_down=lambda: self.__on_forward(True),
+                                       on_mouse_up=lambda: self.__on_forward(False))
+        self.__button_backward = Button(text='Backward', pos=(0, 0), font_size=1,
+                                        on_mouse_down=lambda: self.__on_backward(True),
+                                        on_mouse_up=lambda: self.__on_backward(False))
+        self.__button_turn_left = Button(text='Turn left', pos=(0, 0), font_size=1,
+                                         on_mouse_down=lambda: self.__on_turn_left(True),
+                                         on_mouse_up=lambda: self.__on_turn_left(False))
+        self.__button_turn_right = Button(text='Turn right', pos=(0, 0), font_size=1,
+                                          on_mouse_down=lambda: self.__on_turn_right(True),
+                                          on_mouse_up=lambda: self.__on_turn_right(False))
 
-class ButtonEx(QtWidgets.QPushButton):
-    pressed = QtCore.pyqtSignal()
-    released = QtCore.pyqtSignal()
+    def load(self, gui: GUI):
+        self.__gui = gui
+        width, height = gui.get_size()
 
-    def __init__(self, window: QMainWindow):
-        super().__init__(window)
+        btn_size = height // 3
 
-    def mousePressEvent(self, event):
-        if event.buttons() & QtCore.Qt.LeftButton:
-            self.pressed.emit()
+        self.__button_forward.set_pos((width // 2, btn_size // 2))
+        self.__button_backward.set_pos((width // 2, height - btn_size // 2))
+        self.__button_turn_left.set_pos((width // 2 - btn_size, height // 2))
+        self.__button_turn_right.set_pos((width // 2 + btn_size, height // 2))
 
-    def mouseReleaseEvent(self, event):
-        self.released.emit()
+        for button in [self.__button_forward, self.__button_backward, self.__button_turn_left,
+                       self.__button_turn_right]:
+            button.set_size((btn_size, btn_size))
+            button.set_border_width(4)
 
+        gui.add_widgets(self.__button_forward,
+                        self.__button_backward,
+                        self.__button_turn_left,
+                        self.__button_turn_right)
 
-class RobotView:
-    def __init__(self, window: QMainWindow, events: RobotViewEvents):
-        self.__window = window
-        self.__is_view_active = False
+    def toggle_fill_buttons(self, fill: bool):
+        for button in [self.__button_forward, self.__button_backward, self.__button_turn_left,
+                       self.__button_turn_right]:
+            button.set_fill(fill)
+        self.__gui.redraw()
 
-        events.robot_view_init.connect(lambda _: self.__init_view(_))
-        events.robot_view_hide.connect(lambda: self.__handle_view_hide())
-        events.robot_view_set_steering_button_active.connect(self.__set_steering_button_active)
+    def set_steering_button_active(self, name: str, is_active: bool):
+        button = self.__button_forward if name == 'forward' else self.__button_backward if name == 'backward' else self.__button_turn_left if name == 'left' else self.__button_turn_right if name == 'right' else None
+        if button is not None:
+            button.set_text_color((132, 199, 129) if is_active else (255, 255, 255))
+            self.__gui.redraw()
 
-    def __init_view(self, steering_events: dict):
-        if self.__is_view_active:
-            return
+    def set_detections(self, detections: list[Detection]):
+        for widget in self.__detection_widgets:
+            self.__gui.remove_widgets(widget)
 
-        width = int(self.__window.width() / 3)
-        height = int((self.__window.height() - GUIConsts.TOP_BAR_HEIGHT) / 3)
+        for detection in detections:
+            # Draw bounding_box
+            start_point = detection.bounding_box.left, detection.bounding_box.top
+            end_point = detection.bounding_box.right, detection.bounding_box.bottom
+            center = (int((start_point[0] + end_point[0]) / 2), int((start_point[1] + end_point[1]) / 2))
+            color = (64, 64, 255)
 
-        # TODO: circular joystick controls
-        self.__control_buttons = dict({
-            'forward': ButtonEx(self.__window),
-            'backward': ButtonEx(self.__window),
-            'left': ButtonEx(self.__window),
-            'right': ButtonEx(self.__window),
-        })
+            rect = Button(text='',
+                          pos=center,
+                          background_color=color)
+            rect.set_size((int(end_point[0] - start_point[0]), int(end_point[1] - start_point[1])))
+            rect.set_fill(False)
+            rect.set_border_width(1)
+            rect.set_disabled(True)
+            self.__detection_widgets.append(rect)
 
-        self.__control_buttons['forward'].setText('↑')
-        self.__control_buttons['forward'].move(width, GUIConsts.TOP_BAR_HEIGHT)
-        self.__control_buttons['forward'].pressed.connect(lambda: steering_events['onForward'](True))
-        self.__control_buttons['forward'].released.connect(lambda: steering_events['onForward'](False))
+            # Draw center point
+            center = Button(text='', pos=center, background_color=color)
+            center.set_size((2, 2))
+            center.set_disabled(True)
+            self.__detection_widgets.append(center)
 
-        self.__control_buttons['backward'].setText('↓')
-        self.__control_buttons['backward'].move(width, GUIConsts.TOP_BAR_HEIGHT + height)
-        self.__control_buttons['backward'].pressed.connect(lambda: steering_events['onBackward'](True))
-        self.__control_buttons['backward'].released.connect(lambda: steering_events['onBackward'](False))
+            # Draw label and score
+            category = detection.categories[0]
+            class_name = category.label
+            probability = round(category.score, 2)
+            result_text = class_name + ' (' + str(probability) + ')'
 
-        self.__control_buttons['left'].setText('↶')
-        self.__control_buttons['left'].move(0, GUIConsts.TOP_BAR_HEIGHT + height)
-        self.__control_buttons['left'].pressed.connect(lambda: steering_events['onTurnLeft'](True))
-        self.__control_buttons['left'].released.connect(lambda: steering_events['onTurnLeft'](False))
+            margin = 10  # pixels
+            row_size = 10  # pixels
+            label = Label(text=result_text,
+                          pos=(int(margin + detection.bounding_box.left),
+                               int(margin + row_size + detection.bounding_box.top)),
+                          font_size=1,
+                          font_thickness=1,
+                          text_color=color,
+                          align=GUIConsts.TextAlign.LEFT)
+            self.__detection_widgets.append(label)
 
-        self.__control_buttons['right'].setText('↷')
-        self.__control_buttons['right'].move(width * 2, GUIConsts.TOP_BAR_HEIGHT + height)
-        self.__control_buttons['right'].pressed.connect(lambda: steering_events['onTurnRight'](True))
-        self.__control_buttons['right'].released.connect(lambda: steering_events['onTurnRight'](False))
-
-        for btn in self.__control_buttons.values():
-            btn.setFixedWidth(width)
-            btn.setFixedHeight(height)
-            # btn.setAlignment(QtCore.Qt.AlignCenter)
-            btn.setFont(QFont(None, 72))
-            btn.font().setBold(True)
-            btn.setStyleSheet('color: #fff')
-            btn.show()
-
-        self.__is_view_active = True
-
-    def __handle_view_hide(self):
-        for btn in self.__control_buttons.values():
-            btn.hide()
-            btn.destroy(destroyWindow=True, destroySubWindows=True)
-        self.__window.repaint()
-        self.__is_view_active = False
-
-    def __set_steering_button_active(self, btn_name: str, is_active: bool):
-        self.__control_buttons[btn_name].setStyleSheet(f'color: {"#81C784" if is_active else "#fff"}')
+            self.__gui.add_widgets(rect, center, label)
+        self.__gui.redraw()

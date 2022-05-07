@@ -19,10 +19,6 @@ def disable_speaker():
     return "disable-speaker" in map(lambda arg: arg.lower(), sys.argv)
 
 
-def no_full_screen():
-    return "no-full-screen" in map(lambda arg: arg.lower(), sys.argv)
-
-
 def get_argument_value(argument_name: str):
     for arg in sys.argv:
         match = re.match(rf"{argument_name}=(.*)", arg)
@@ -36,7 +32,7 @@ def loud_print(text: str, speak_asynchronously: bool = False):
     if disable_speaker():
         return
     if speak_asynchronously:
-        speaking_thread = Thread(target=lambda _text: speak(_text), args=(text,))  # , args=(recognizer, microphone))
+        speaking_thread = Thread(target=lambda _text: speak(_text), args=(text,), daemon=True)
         speaking_thread.start()
     else:
         speak(text)
