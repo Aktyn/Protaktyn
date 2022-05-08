@@ -1,11 +1,10 @@
 import cv2
 import json
 import os
-import uuid
 import numpy as np
 
 from threading import Thread
-from typing import Optional, List, NamedTuple, Callable
+from typing import Optional, List, NamedTuple
 from tflite_support import metadata
 
 from src.gui.core.gui import GUI
@@ -20,9 +19,6 @@ except ImportError:
 
     Interpreter = tf.lite.Interpreter
     load_delegate = tf.lite.experimental.load_delegate
-
-
-# pylint: enable=g-import-not-at-top
 
 
 class Rect(NamedTuple):
@@ -55,26 +51,16 @@ class Detection(NamedTuple):
 #   }.get(platform.system(), None)
 
 class ObjectDetector:
-    def __init__(self, on_detection_callback: Callable[[list[Detection]], None], gui: GUI,
-                 *target_categories: str):
-        self.__id = uuid.uuid4().hex
-
-        self.__on_detection_callback = on_detection_callback
+    def __init__(self, gui: GUI):
         self.__gui = gui
-        self.__target_categories = target_categories
 
         self.__detection_process: Optional[Thread] = None
-
-        label_deny_list: Optional[List[str]] = None
-        label_allow_list: Optional[List[str]] = None
 
         self.__options = dict({
             'num_threads': 4,
             'score_threshold': 0.3,
             'max_results': 3,
-            'enable_edgetpu': False,
-            'label_deny_list': label_deny_list,
-            'label_allow_list': label_allow_list,
+            'enable_edgetpu': False
         })
 
         # https://tfhub.dev/tensorflow/lite-model/efficientdet/lite0/detection/metadata/1?lite-format=tflite
@@ -133,23 +119,10 @@ class ObjectDetector:
         self.__input_size = input_detail['shape'][2], input_detail['shape'][1]
         self.__is_quantized_input = input_detail['dtype'] == np.uint8
 
-        # --- RUN --- #
-        self.__gui.start_camera_preview((640, 360))
-
-        self.__is_running = True
-
-        self.__detection_process = Thread(target=self.__detection_thread, daemon=True)
-        self.__detection_process.start()
-
     def close(self):
-        self.__is_running = False
-        if self.__detection_process is not None:
-            self.__detection_process.join()
+        pass
 
-    def id(self):
-        return self.__id
-
-    def __detect(self, input_image: np.ndarray) -> List[Detection]:
+    def detect(self, input_image: np.ndarray) -> List[Detection]:
         image_height, image_width, _ = input_image.shape
 
         input_tensor = self.__preprocess(input_image)
@@ -164,15 +137,6 @@ class ObjectDetector:
         count = int(self.__get_output_tensor('OUTPUT_NUMBER_NAME'))
 
         return self.__postprocess(boxes, classes, scores, count, image_width, image_height)
-
-    def __detection_thread(self):
-        while self.__is_running:
-            image = self.__gui.get_last_camera_frame()
-            if image is None:
-                continue
-
-            detections = self.__detect(image)
-            self.__on_detection_callback(list(filter(lambda d: d.categories[0].label in self.__target_categories, detections)))
 
     def __preprocess(self, input_image: np.ndarray) -> np.ndarray:
         # Resize the input
@@ -221,23 +185,3 @@ class ObjectDetector:
         sorted_results = sorted(results, key=lambda detection: detection.categories[0].score, reverse=True)
 
         return sorted_results
-
-        # Filter out detections in deny list
-        # filtered_results = sorted_results
-        # if self.__options["label_deny_list"] is not None:
-        #     filtered_results = list(
-        #         filter(lambda detection: detection.categories[0].label not in self.__options["label_deny_list"],
-        #                filtered_results))
-        #
-        # # Keep only detections in allow list
-        # if self.__options["label_allow_list"] is not None:
-        #     filtered_results = list(
-        #         filter(lambda detection: detection.categories[0].label in self.__options["label_allow_list"],
-        #                filtered_results))
-        #
-        # # Only return maximum of max_results detection.
-        # if self.__options["max_results"] > 0:
-        #     result_count = min(len(filtered_results), self.__options["max_results"])
-        #     filtered_results = filtered_results[:result_count]
-        #
-        # return filtered_results

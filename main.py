@@ -23,6 +23,6 @@ Available arguments:
     nogui - doesn't display any GUI window
     use-epaper - uses ePaper display
     disable-speaker - disables voice generator
-    start-module="MODULE NAME" - automatically starts specified module (available modules: scoreboard, robot)
+    start-module="MODULE NAME" - automatically starts specified module (available modules: scoreboard, robot, workbench)
 ''')
     Core()

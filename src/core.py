@@ -8,6 +8,7 @@ from src.gui.core.gui_consts import GUIConsts
 from src.modules.moduleBase import ModuleBase
 from src.modules.robot.module import RobotModule
 from src.modules.scoreboard.module import ScoreboardModule
+from src.modules.workbench.module import WorkbenchModule
 from src.speech import Speech
 from src.common.utils import loud_print
 
@@ -38,6 +39,8 @@ class Core(CommandsInterface):
                         self.__start_module(ScoreboardModule)
                     elif module_name == 'robot':
                         self.__start_module(RobotModule)
+                    elif module_name == 'workbench':
+                        self.__start_module(WorkbenchModule)
         except BaseException as e:
             print(e)
 

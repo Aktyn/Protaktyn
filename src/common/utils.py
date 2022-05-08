@@ -4,17 +4,28 @@ from src.speaker import speak
 from threading import Thread
 
 
-# TODO: try and cache result
+def cache(fun):
+    cache.response_ = {}
+
+    def inner():
+        if fun.__name__ not in cache.response_:
+            cache.response_[fun.__name__] = fun()
+        return cache.response_[fun.__name__]
+
+    return inner
+
+
+@cache
 def show_gui():
     return "nogui" not in map(lambda arg: arg.lower(), sys.argv)
 
 
-# TODO: same as above
+@cache
 def use_epaper():
     return "use-epaper" in map(lambda arg: arg.lower(), sys.argv)
 
 
-# TODO: same as above
+@cache
 def disable_speaker():
     return "disable-speaker" in map(lambda arg: arg.lower(), sys.argv)
 

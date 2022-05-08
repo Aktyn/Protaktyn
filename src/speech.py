@@ -10,7 +10,7 @@ class Speech:
     __LANG = "pl-PL"  # "en-US", "pl-PL"
     __MAX_SAMPLES = 5
     __MAX_QUEUE_SAMPLES_SIZE = 8
-    __AMBIENT_NOISE_ADJUSTING_DURATION = 1  # Restore 5 seconds on production
+    __AMBIENT_NOISE_ADJUSTING_DURATION = 0  # Restore 5 seconds on production
 
     class __Recorder:
         __SAMPLE_DURATION = 1.5

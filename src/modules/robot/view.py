@@ -1,7 +1,10 @@
+import numpy as np
+
 from typing import Callable, Optional
 from src.gui.core.button import Button
 from src.gui.core.gui import GUI
 from src.gui.core.gui_consts import GUIConsts
+from src.gui.core.image import Image
 from src.gui.core.label import Label
 from src.gui.core.widget import Widget
 from src.gui.views.view_base import ViewBase
@@ -25,16 +28,19 @@ class RobotView(ViewBase):
         self.__button_backward = Button(text='Backward', pos=(0, 0), font_size=1,
                                         on_mouse_down=lambda: self.__on_backward(True),
                                         on_mouse_up=lambda: self.__on_backward(False))
-        self.__button_turn_left = Button(text='Turn left', pos=(0, 0), font_size=1,
+        self.__button_turn_left = Button(text='Turn left', pos=(0, 0), font_size=1, background_color=(136, 150, 0),
                                          on_mouse_down=lambda: self.__on_turn_left(True),
                                          on_mouse_up=lambda: self.__on_turn_left(False))
-        self.__button_turn_right = Button(text='Turn right', pos=(0, 0), font_size=1,
+        self.__button_turn_right = Button(text='Turn right', pos=(0, 0), font_size=1, background_color=(136, 150, 0),
                                           on_mouse_down=lambda: self.__on_turn_right(True),
                                           on_mouse_up=lambda: self.__on_turn_right(False))
 
+        self.__depth_estimation_image = Image(pos=(0, GUI.DEFAULT_SIZE[1]), size=GUI.DEFAULT_SIZE)
+
     def load(self, gui: GUI):
         self.__gui = gui
-        width, height = gui.get_size()
+        gui.set_size(GUI.DEFAULT_SIZE)
+        width, height = GUI.DEFAULT_SIZE
 
         btn_size = height // 3
 
@@ -45,7 +51,7 @@ class RobotView(ViewBase):
 
         for button in [self.__button_forward, self.__button_backward, self.__button_turn_left,
                        self.__button_turn_right]:
-            button.set_size((btn_size, btn_size))
+            button.set_size((int(btn_size * 1.618), btn_size))
             button.set_border_width(4)
 
         gui.add_widgets(self.__button_forward,
@@ -58,6 +64,17 @@ class RobotView(ViewBase):
                        self.__button_turn_right]:
             button.set_fill(fill)
         self.__gui.redraw()
+
+    def toggle_depth_preview(self, show: bool):
+        if show:
+            self.__gui.set_size((GUI.DEFAULT_SIZE[0], GUI.DEFAULT_SIZE[1] * 2))
+            self.__gui.add_widgets(self.__depth_estimation_image)
+        else:
+            self.__gui.set_size(GUI.DEFAULT_SIZE)
+            self.__gui.remove_widgets(self.__depth_estimation_image)
+
+    def set_depth_estimation_image(self, image: np.ndarray):
+        self.__depth_estimation_image.set_image(image)
 
     def set_steering_button_active(self, name: str, is_active: bool):
         button = self.__button_forward if name == 'forward' else self.__button_backward if name == 'backward' else self.__button_turn_left if name == 'left' else self.__button_turn_right if name == 'right' else None
@@ -102,7 +119,7 @@ class RobotView(ViewBase):
             label = Label(text=result_text,
                           pos=(int(margin + detection.bounding_box.left),
                                int(margin + row_size + detection.bounding_box.top)),
-                          font_size=1,
+                          font_size=0.5,
                           font_thickness=1,
                           text_color=color,
                           align=GUIConsts.TextAlign.LEFT)

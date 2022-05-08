@@ -10,7 +10,7 @@ class Button(Label):
     __BG_COLOR = (154, 166, 38)
     __HOVER_COLOR = (172, 182, 77)
 
-    def __init__(self, text: str, pos: tuple[int, int], padding=16, font_size=2, font_thickness=2,
+    def __init__(self, text: str, pos: tuple[int, int], padding=16, font_size: float = 2, font_thickness=2,
                  font_color=(255, 255, 255), background_color=__BG_COLOR, on_click: Callable = None,
                  on_mouse_up: Callable = None,
                  on_mouse_down: Callable = None):
@@ -50,8 +50,8 @@ class Button(Label):
     def aabb(self):
         (w, h), baseline = self._measurements
         if self._size is None:
-            left_top = (self._pos[0] - w // 4 - self.__padding, self._pos[1] - h // 4 - self.__padding)
-            right_bottom = (self._pos[0] + w // 4 + self.__padding, self._pos[1] + h // 4 + self.__padding)
+            left_top = (self._pos[0] - w // 2 - self.__padding, self._pos[1] - h // 2 - self.__padding)
+            right_bottom = (self._pos[0] + w // 2 + self.__padding, self._pos[1] + h // 2 + self.__padding)
             return left_top, right_bottom
         else:
             left_top = (self._pos[0] - self._size[0] // 2, self._pos[1] - self._size[1] // 2)

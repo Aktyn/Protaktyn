@@ -15,11 +15,9 @@ if show_gui():
 
 
     class GUI:
-        __COUNTER = 0
-        _DEFAULT_WIDTH = 640
-        _DEFAULT_HEIGHT = 360
+        DEFAULT_SIZE = (640, 360)
 
-        def __init__(self, on_close: Callable, size: tuple[int, int] = (_DEFAULT_WIDTH, _DEFAULT_HEIGHT)):
+        def __init__(self, on_close: Callable, size: tuple[int, int] = DEFAULT_SIZE):
             self.__running = False
             self.__need_redraw = False
             self.__title = GUIConsts.WINDOW_TITLE
@@ -31,6 +29,8 @@ if show_gui():
             self.__camera_frames_history_buffer_size = 60
 
             self.__background_color = (56, 50, 38)
+            self.__img = np.full(shape=(size[1], size[0], 3), fill_value=self.__background_color,
+                                 dtype=np.uint8)
 
             self.__widgets: list[Widget] = []
             self.__camera_stream: Optional[VideoCapture] = None
@@ -56,8 +56,18 @@ if show_gui():
                     pass
                 self.__window_thread = None
 
+            del self.__img
+
         def get_size(self):
             return self.__size
+
+        def set_size(self, size: tuple[int, int]):
+            self.__size = size
+            # noinspection PyBroadException
+            # try:
+            #     cv2.resizeWindow(self.__title, size[0], size[1])
+            # except BaseException:
+            #     pass
 
         def set_title(self, title: str):
             # noinspection PyBroadException
@@ -66,13 +76,18 @@ if show_gui():
             except BaseException:
                 pass
 
-        def start_camera_preview(self, resolution: tuple[int, int], camera_id=0):
+        def start_camera_preview(self, resolution: tuple[int, int] = DEFAULT_SIZE, camera_id=0):
             if self.__camera_stream is not None:
                 print("Camera preview already started")
                 return
-            self.__camera_stream = cv2.VideoCapture(camera_id)
-            self.__camera_stream.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
-            self.__camera_stream.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+            print("Starting camera preview. Camera id:", camera_id)
+
+            try:
+                self.__camera_stream = cv2.VideoCapture(camera_id)
+                self.__camera_stream.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
+                self.__camera_stream.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+            except BaseException as e:
+                print("Failed to start camera preview:", e)
 
         def stop_camera_preview(self):
             if self.__camera_stream is not None:
@@ -95,7 +110,26 @@ if show_gui():
             # cv2.moveWindow(self.__title, 0, 0)
             cv2.setMouseCallback(self.__title, self.__handle_mouse_event)
 
-            img = np.full(shape=(height, width, 3), fill_value=self.__background_color, dtype=np.uint8)
+            def __draw_frame(camera_frame: Optional[np.ndarray] = None):
+                if self.__need_redraw or camera_frame is not None:
+
+                    self.__img = np.full(shape=(self.__size[1], self.__size[0], 3), fill_value=self.__background_color,
+                                         dtype=np.uint8)
+
+                    if camera_frame is not None:
+                        h2, w2 = camera_frame.shape[:2]
+                        self.__img[:h2, :w2] = camera_frame
+
+                    for __widget in self.__widgets:
+                        __widget.draw(self.__img)
+                    self.__need_redraw = False
+
+                # noinspection PyBroadException
+                try:
+                    if self.__running:
+                        cv2.imshow(self.__title, self.__img)
+                except BaseException:
+                    pass
 
             while self.__running:
                 if cv2.getWindowProperty(self.__title, cv2.WND_PROP_VISIBLE) < 1:
@@ -108,35 +142,26 @@ if show_gui():
                 if self.__camera_stream is not None and self.__camera_stream.isOpened():
                     success, camera_image = self.__camera_stream.read()
                     if success:
+                        height, width = camera_image.shape[:2]
                         self.__camera_frames_history.append(camera_image)
+
                         while len(self.__camera_frames_history) > self.__camera_frames_history_buffer_size:
                             self.__camera_frames_history.pop(0)
-                        for widget in self.__widgets:
-                            widget.draw(camera_image)
-                        # noinspection PyBroadException
-                        try:
-                            if self.__running:
-                                cv2.imshow(self.__title, camera_image)
-                        except BaseException:
-                            pass
-                    # else:
-                    #     print("ERROR: Unable to read from webcam. Please verify your webcam settings.")
-                    #     self.stop_camera_preview()
-                else:
-                    if self.__need_redraw:
-                        img = np.full(shape=(height, width, 3), fill_value=self.__background_color, dtype=np.uint8)
-                        for widget in self.__widgets:
-                            widget.draw(img)
-                        self.__need_redraw = False
 
-                    # noinspection PyBroadException
-                    try:
-                        if self.__running:
-                            cv2.imshow(self.__title, img)
-                    except BaseException:
-                        pass
+                        if width == self.__size[0] and height == self.__size[1]:
+                            for widget in self.__widgets:
+                                widget.draw(camera_image)
+                            # noinspection PyBroadException
+                            try:
+                                if self.__running:
+                                    cv2.imshow(self.__title, camera_image)
+                            except BaseException:
+                                pass
+                        else:
+                            __draw_frame(camera_image)
+                else:
+                    __draw_frame()
                 cv2.waitKey(1) & 0xFF
-            del img
 
         def redraw(self):
             self.__need_redraw = True
@@ -188,10 +213,9 @@ if show_gui():
 else:
     # Mock GUI TODO: camera preview functionality
     class GUI:
-        _DEFAULT_WIDTH = 640
-        _DEFAULT_HEIGHT = 480
+        DEFAULT_SIZE = (640, 360)
 
-        def __init__(self, _on_close: Callable, _size: tuple[int, int] = (_DEFAULT_WIDTH, _DEFAULT_HEIGHT)):
+        def __init__(self, _on_close: Callable, _size: tuple[int, int] = DEFAULT_SIZE):
             pass
 
         def close(self):
@@ -209,6 +233,9 @@ else:
         def get_size(self):
             pass
 
+        def set_size(self, size: tuple[int, int]):
+            pass
+
         def set_title(self, title: str):
             pass
 
@@ -224,10 +251,10 @@ else:
         def clear_view(self):
             pass
 
-        def add_widget(self, widget: Widget):
+        def add_widgets(self, *widgets: Widget):
             pass
 
-        def remove_widgets(self, widget: Widget):
+        def remove_widgets(self, *widgets: Widget):
             pass
 
         def remove_all_widgets(self):

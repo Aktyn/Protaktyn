@@ -1,10 +1,12 @@
 import random
+import time
 from datetime import datetime
 from enum import Enum
 from threading import Thread
-from typing import Optional, Tuple
+from typing import Optional
 
 from src.config.commands import Commands
+from src.depth_estimation.depth import DepthEstimator
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
 from src.modules.robot.view import RobotView
@@ -29,6 +31,7 @@ class RobotModule(ModuleBase):
         self._gui.set_view(self.__view)
 
         self.__detector: Optional[ObjectDetector] = None
+        self.__depth: Optional[DepthEstimator] = None
         self.__movement_thread: Optional[Thread] = None
         self.__last_target_detection: Optional[dict] = None
 
@@ -36,19 +39,39 @@ class RobotModule(ModuleBase):
         self.__current_direction: Optional[RobotModule.__Direction] = None
         self.__next_direction: Optional[RobotModule.__Direction] = None
 
-        super().register_command(Commands.ROBOT.target_cat,
-                                 lambda *args: self.__start_targeting_object('cat', 'dog', 'horse', 'sheep', 'cow',
-                                                                             # , 'person'
-                                                                             'bear', 'zebra', 'teddy bear', 'bottle'))
+        super().register_command(Commands.ROBOT.target_cat,  # , 'person'
+                                 lambda *args: self.__start_targeting_objects('cat', 'dog', 'horse', 'sheep', 'cow',
+                                                                              'bear', 'zebra', 'teddy bear', 'bottle'))
 
-        # TEMP!!!
+        self.__detector = ObjectDetector(self._gui)
+        self.__depth = DepthEstimator(self._gui)
+
+        self.__is_targeting = False
+        self.__targeting_process: Optional[Thread] = None
+
+        # TEMP
         # self.__start_targeting_object('cat')
 
     def close(self):
+        self.stop_targeting()
         self.__wheels.close()
-        if self.__detector is not None:
-            self.__detector.close()
+        self.__detector.close()
+        self.__depth.close()
         super().close()
+
+    def stop_targeting(self):
+        self.__view.toggle_fill_buttons(True)
+        self.__view.toggle_depth_preview(False)
+        self._gui.stop_camera_preview()
+
+        self.__is_targeting = False
+        if self.__targeting_process is not None:
+            self.__targeting_process.join()
+            self.__targeting_process = None
+
+        if self.__movement_thread is not None:
+            self.__movement_thread.join()
+            self.__movement_thread = None
 
     def __handle_direction_change(self, direction: __Direction, enable: bool, force=False):
         if not enable:
@@ -96,9 +119,9 @@ class RobotModule(ModuleBase):
 
     def __smart_movement_thread(self):
         print("Smart movement thread started")
-        if self.__detector is None:
-            return
-        detector_id = self.__detector.id()
+        # if self.__detector is None:
+        #     return
+        # detector_id = self.__detector.id()
 
         next_action_delay = 3
         idle_time = 15.0
@@ -116,7 +139,7 @@ class RobotModule(ModuleBase):
         is_rotating_toward_target = False
         is_following_target = False
 
-        while self.__detector and self.__detector.id() == detector_id:
+        while self.__targeting_process is not None:  # and self.__detector.id() == detector_id:
             now = datetime.now().timestamp()
 
             # Wait some time after previous action
@@ -197,16 +220,39 @@ class RobotModule(ModuleBase):
             'timestamp': datetime.now().timestamp()
         }
 
-    def __start_targeting_object(self, *object_names: str):
-        if self.__detector is not None:
-            print("There is already a detector running")
-            return
-        loud_print(f"Starting targeting objects: {object_names}", True)
-        self.__detector = ObjectDetector(self.__handle_target_detection, self._gui, *object_names)
+    def __targeting_thread(self, *object_names: str):
+        self.__is_targeting = True
 
+        loud_print(f"Starting targeting objects: {object_names}", True)
+
+        self._gui.start_camera_preview()
         self.__view.toggle_fill_buttons(False)
+        self.__view.toggle_depth_preview(True)
+
+        while self.__is_targeting:
+            start = time.time()
+
+            image = self._gui.get_last_camera_frame()
+            if image is None:
+                continue
+
+            detections = self.__detector.detect(image)
+            self.__handle_target_detection(list(filter(lambda d: d.categories[0].label in object_names, detections)))
+
+            depth_estimation = self.__depth.estimate(image)
+            self.__view.set_depth_estimation_image(depth_estimation)
+
+            fps = min(30.0, 1 / (time.time() - start))
+            print("FPS:", fps)
+
+    def __start_targeting_objects(self, *object_names: str):
+        if self.__targeting_process is not None:
+            print("There is already a targeting objects process running")
+            return
+
+        self.__targeting_process = Thread(target=self.__targeting_thread, daemon=True, args=object_names)
+        self.__targeting_process.start()
 
         if self.__movement_thread is None:
-            self.__movement_thread = Thread(target=self.__smart_movement_thread)
-            self.__movement_thread.daemon = True
+            self.__movement_thread = Thread(target=self.__smart_movement_thread, daemon=True)
             self.__movement_thread.start()
