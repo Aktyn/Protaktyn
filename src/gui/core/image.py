@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 
 from src.gui.core.widget import Widget
 
@@ -9,21 +8,12 @@ class Image(Widget):
         super().__init__(pos, size)
         self.__img = np.full(shape=(self._size[1], self._size[0], 3), fill_value=fill,
                              dtype=np.uint8)
-        self.__base = self.__img.copy()
 
     def set_image(self, image: np.ndarray):
         height, width = image.shape[:2]
         if height != self._size[1] or width != self._size[0]:
             raise ValueError("Image size does not match widget size")
         self.__img = image
-
-    def set_angle(self, angle: float):
-        (cX, cY) = (self._size[0] // 2, self._size[1] // 2)
-        m = cv2.getRotationMatrix2D((cX, cY), angle * 180, 1.0)
-
-        (h, w) = self.__base.shape[:2]
-        self.__img = cv2.warpAffine(self.__base, m, (w, h))
-        # self.__img = cv2.rotate(self.__base)
 
     def draw(self, image: np.ndarray):
         height, width = self.__img.shape[:2]

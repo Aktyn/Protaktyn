@@ -24,6 +24,7 @@ if show_gui():
             self.__on_close = on_close
             self.__size = size
             self.__current_view: Optional[ViewBase] = None
+            self.key = 255
 
             self.__camera_frames_history: list[any] = []
             self.__camera_frames_history_buffer_size = 60
@@ -161,7 +162,7 @@ if show_gui():
                             __draw_frame(camera_image)
                 else:
                     __draw_frame()
-                cv2.waitKey(1) & 0xFF
+                self.key = cv2.waitKey(1) & 0xFF
 
         def redraw(self):
             self.__need_redraw = True
