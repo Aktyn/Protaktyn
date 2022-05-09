@@ -97,6 +97,7 @@ class SimulationBase:
     def __init__(self, gui: GUI, gravity=(0.0, 0.0), damping=0.99):
         self._gui = gui
         self.__is_running = False
+        self.__simulate = False
 
         self.__camera_pos = (0.0, 0.0)
         self.__objects: list[SimulationBase._Object] = []
@@ -105,21 +106,28 @@ class SimulationBase:
         self.__space = pymunk.Space()
         self.__space.gravity = gravity
         self.__space.damping = damping
-        self.__space.collision_bias = 0.01
-        self.__space.collision_slop = 0.01
-        self.__space.collision_persistence = 8
+        self.__space.collision_bias = 0.0001
+        self.__space.collision_slop = 0.0001
+        # self.__space.collision_persistence = 4
 
         self._simulation_process: Optional[Thread] = None
 
     @abstractmethod
     def close(self):
         self.__is_running = False
+        self._remove_objects(*self.__objects)
         if self._simulation_process is not None:
             self._simulation_process.join()
 
     def _start(self):
         self._simulation_process = Thread(target=self.__simulation_thread, daemon=True)
         self._simulation_process.start()
+
+    def toggle_simulate(self, enable: bool):
+        """
+            Switches between 60fps and maximum frequency.
+        """
+        self.__simulate = enable
 
     @abstractmethod
     def _init(self):
@@ -129,6 +137,16 @@ class SimulationBase:
     def _update(self, delta_time: float):
         pass
 
+    def _remove_objects(self, *objects: _Object):
+        for obj in objects:
+            self.__objects.remove(obj)
+            if obj.body:
+                self.__space.remove(obj.body)
+            if obj.shape:
+                self.__space.remove(obj.shape)
+            if obj.widget is not None:
+                self._gui.remove_widgets(obj.widget)
+
     def _add_objects(self, *objects: _Object):
         for obj in objects:
             self.__objects.append(obj)
@@ -137,7 +155,7 @@ class SimulationBase:
             if obj.shape:
                 self.__space.add(obj.shape)
             if obj.widget is not None:
-                self._gui.add_widgets(obj.widget)
+                self._gui.add_widgets((obj.widget,))
 
     def _ray_cast(self, from_point: tuple[float, float], to_point: tuple[float, float], mask=0xFFFFFFFF):
         segment_q = self.__space.segment_query_first(start=from_point, end=to_point, radius=0.00001,
@@ -160,7 +178,7 @@ class SimulationBase:
 
         while self.__is_running:
             now = time.time()
-            delta_time = now - last
+            delta_time = 1. / 60. if self.__simulate else now - last
             if int(now) > int(last):
                 print(f"FPS: {counter}")
                 counter = 0
@@ -172,4 +190,5 @@ class SimulationBase:
             for obj in self.__objects:
                 obj.update(self.__camera_pos)
             self._gui.redraw()
-            time.sleep(max(0.0, 1.0 / 60.0 - (time.time() - now)))
+            if not self.__simulate:
+                time.sleep(max(0.0, 1.0 / 60.0 - (time.time() - now)))

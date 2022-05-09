@@ -19,13 +19,22 @@ class WorkbenchModule(ModuleBase):
         self.__simulation: Optional[SimulationBase] = None
 
     def close(self):
-        if self.__simulation is not None:
-            self.__simulation.close()
-            self.__simulation = None
+        self.__stop_simulation()
         super().close()
+
+    def __stop_simulation(self):
+        self.__view.toggle_simulation_buttons(True)
+
+        if self.__simulation is None:
+            return
+        self.__simulation.close()
+        self.__simulation = None
+        self.__view.remove_simulation_controls()
 
     def __start_simulation(self, simulation_name: str):
         self.__view.toggle_simulation_buttons(False)
 
         if simulation_name == 'room':
             self.__simulation = RoomSimulation(self._gui)
+            self.__view.setup_simulation_controls(on_close=self.__stop_simulation,
+                                                  on_toggle_simulation=self.__simulation.toggle_simulate)

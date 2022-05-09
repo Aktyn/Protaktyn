@@ -29,7 +29,7 @@ class ScoreboardView(ViewBase):
         self.__left_set_points_label.set_pos((width // 2 - 30, height - 42))
         self.__right_set_points_label.set_pos((width // 2 + 30, height - 42))
 
-        gui.add_widgets(
+        gui.add_widgets((
             Button(text='Add point to left', pos=(width // 2 - 160, 40), padding=16,
                    on_click=self.__on_left_player_point, font_size=1),
             Button(text='Add point to right', pos=(width // 2 + 160, 40), padding=16,
@@ -42,7 +42,7 @@ class ScoreboardView(ViewBase):
             self.__left_set_points_label,
             Label(text='|', pos=(width // 2, height - 42), font_size=2, font_thickness=1),  # Set points separator
             self.__right_set_points_label
-        )
+        ))
 
     def update_points(self, left_player_points: int, right_player_points: int):
         self.__left_points_label.set_text(str(left_player_points))

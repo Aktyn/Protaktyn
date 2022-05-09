@@ -54,10 +54,10 @@ class RobotView(ViewBase):
             button.set_size((int(btn_size * 1.618), btn_size))
             button.set_border_width(4)
 
-        gui.add_widgets(self.__button_forward,
+        gui.add_widgets((self.__button_forward,
                         self.__button_backward,
                         self.__button_turn_left,
-                        self.__button_turn_right)
+                        self.__button_turn_right))
 
     def toggle_fill_buttons(self, fill: bool):
         for button in [self.__button_forward, self.__button_backward, self.__button_turn_left,
@@ -68,7 +68,7 @@ class RobotView(ViewBase):
     def toggle_depth_preview(self, show: bool):
         if show:
             self.__gui.set_size((GUI.DEFAULT_SIZE[0], GUI.DEFAULT_SIZE[1] * 2))
-            self.__gui.add_widgets(self.__depth_estimation_image)
+            self.__gui.add_widgets((self.__depth_estimation_image,))
         else:
             self.__gui.set_size(GUI.DEFAULT_SIZE)
             self.__gui.remove_widgets(self.__depth_estimation_image)
@@ -125,5 +125,5 @@ class RobotView(ViewBase):
                           align=GUIConsts.TextAlign.LEFT)
             self.__detection_widgets.append(label)
 
-            self.__gui.add_widgets(rect, center, label)
+            self.__gui.add_widgets((rect, center, label))
         self.__gui.redraw()

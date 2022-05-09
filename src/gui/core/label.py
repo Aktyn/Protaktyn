@@ -25,6 +25,17 @@ class Label(Widget):
     def set_text(self, text: str):
         self.__text = text
 
+    def get_text(self):
+        return self.__text
+
+    def set_font_size(self, size: float):
+        self.__font_size = size
+        self._measurements = self.__measure()
+
+    def set_font_thickness(self, thickness: int):
+        self.__font_thickness = thickness
+        self._measurements = self.__measure()
+
     def set_text_color(self, color: tuple[int, int, int]):
         self.__text_color = color
 

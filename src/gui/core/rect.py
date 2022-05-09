@@ -1,8 +1,7 @@
-from math import cos, sin, atan2, sqrt
-
 import cv2
 import numpy as np
 
+from math import cos, sin, atan2, sqrt
 from src.gui.core.widget import Widget
 
 

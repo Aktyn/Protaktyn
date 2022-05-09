@@ -33,7 +33,7 @@ if show_gui():
             self.__img = np.full(shape=(size[1], size[0], 3), fill_value=self.__background_color,
                                  dtype=np.uint8)
 
-            self.__widgets: list[Widget] = []
+            self.__widgets: list[list[Widget]] = []
             self.__camera_stream: Optional[VideoCapture] = None
 
             self.__window_thread = Thread(target=self.__init_window, daemon=True)
@@ -121,8 +121,9 @@ if show_gui():
                         h2, w2 = camera_frame.shape[:2]
                         self.__img[:h2, :w2] = camera_frame
 
-                    for __widget in self.__widgets:
-                        __widget.draw(self.__img)
+                    for __widgets_layer in self.__widgets:
+                        for __widget in __widgets_layer:
+                            __widget.draw(self.__img)
                     self.__need_redraw = False
 
                 # noinspection PyBroadException
@@ -150,8 +151,9 @@ if show_gui():
                             self.__camera_frames_history.pop(0)
 
                         if width == self.__size[0] and height == self.__size[1]:
-                            for widget in self.__widgets:
-                                widget.draw(camera_image)
+                            for widgets_layer in self.__widgets:
+                                for widget in widgets_layer:
+                                    widget.draw(camera_image)
                             # noinspection PyBroadException
                             try:
                                 if self.__running:
@@ -168,21 +170,22 @@ if show_gui():
             self.__need_redraw = True
 
         def __handle_mouse_event(self, event: int, x: int, y: int, _flags: any, _param: any):
-            for widget in self.__widgets:
-                if type(widget) == Button:
-                    # noinspection PyTypeChecker
-                    button = widget  # type: Button
-                    if button.is_disabled():
-                        continue
-                    is_cursor_over = button.is_point_inside(x, y)
-                    if event == cv2.EVENT_MOUSEMOVE:
-                        if button.toggle_hover(is_cursor_over):
-                            self.__need_redraw = True
-                    elif event == cv2.EVENT_LBUTTONDOWN and is_cursor_over:
-                        button.on_mouse_down()
-                    elif event == cv2.EVENT_LBUTTONUP and is_cursor_over:
-                        button.on_mouse_up()
-                        button.click()
+            for widgets_layer in self.__widgets:
+                for widget in widgets_layer:
+                    if type(widget) == Button:
+                        # noinspection PyTypeChecker
+                        button = widget  # type: Button
+                        if button.is_disabled():
+                            continue
+                        is_cursor_over = button.is_point_inside(x, y)
+                        if event == cv2.EVENT_MOUSEMOVE:
+                            if button.toggle_hover(is_cursor_over):
+                                self.__need_redraw = True
+                        elif event == cv2.EVENT_LBUTTONDOWN and is_cursor_over:
+                            button.on_mouse_down()
+                        elif event == cv2.EVENT_LBUTTONUP and is_cursor_over:
+                            button.on_mouse_up()
+                            button.click()
 
         def get_view(self):
             return self.__current_view
@@ -197,17 +200,24 @@ if show_gui():
             self.__current_view = None
             self.remove_all_widgets()
 
-        def add_widgets(self, *widgets: Widget):
-            self.__widgets.extend(widgets)
+        def add_widgets(self, widgets: tuple[Widget, ...], z_index: int = 0):
+            while len(self.__widgets) <= z_index:
+                self.__widgets.append([])
+            self.__widgets[z_index].extend(widgets)
             self.__need_redraw = True
 
         def remove_widgets(self, *widgets: Widget):
+            # for widgets_layer in widgets:
             for widget in widgets:
-                if self.__widgets.count(widget) > 0:
-                    self.__widgets.remove(widget)
+                for widgets_layer in self.__widgets:
+                    if widgets_layer.count(widget) > 0:
+                        widgets_layer.remove(widget)
+                        break
             self.__need_redraw = True
 
         def remove_all_widgets(self):
+            for layer in self.__widgets:
+                layer.clear()
             self.__widgets.clear()
             self.__need_redraw = True
 
@@ -252,7 +262,7 @@ else:
         def clear_view(self):
             pass
 
-        def add_widgets(self, *widgets: Widget):
+        def add_widgets(self, widgets: tuple[Widget, ...], z_index: int = 0):
             pass
 
         def remove_widgets(self, *widgets: Widget):
