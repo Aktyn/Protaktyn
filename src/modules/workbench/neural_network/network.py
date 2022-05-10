@@ -8,6 +8,7 @@ class NeuralNetwork:
     class _ActivationFunction:
         LINEAR = lambda value: value
         SIGMOID = lambda value: 1.0 / (1.0 + np.exp(-value))
+        HYPERBOLIC_TANGENT = lambda value: np.tanh(value)
 
     class _Neuron:
         def __init__(self, activation_function: Callable[[float], float]):
@@ -37,7 +38,7 @@ class NeuralNetwork:
         for i, layer_size in enumerate(layers):
             self.__layers.append(
                 list(map(lambda _: NeuralNetwork._Neuron(
-                    NeuralNetwork._ActivationFunction.SIGMOID if i > 0 else NeuralNetwork._ActivationFunction.LINEAR
+                    NeuralNetwork._ActivationFunction.HYPERBOLIC_TANGENT if i > 0 else NeuralNetwork._ActivationFunction.LINEAR
                 ), range(layer_size)))
             )
 

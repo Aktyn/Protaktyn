@@ -1,9 +1,11 @@
 import random
+import time
 from math import cos, sin, pi, sqrt
 from src.common.math import mix
 from src.gui.core.gui import GUI
 from src.gui.core.widget import Widget
-from src.modules.workbench.common.steering import Steering
+from src.modules.workbench.common.steering import Steering, KeyboardSteering
+from src.modules.workbench.evolution.evolution import Evolution
 from src.modules.workbench.neural_network.network import NeuralNetwork
 from src.modules.workbench.neural_network.visualize import visualize_network
 from src.modules.workbench.simulations.simulation_base import SimulationBase
@@ -15,9 +17,10 @@ from src.modules.workbench.simulations.simulation_base import SimulationBase
 class RoomSimulation(SimulationBase):
     _SENSOR_RANGE = 2
     _SCALE = 0.1
-    __POPULATION = 100  # 200
+    __POPULATION = 50  # 200
     __LAYERS = [3, 8, 2]
     __STEERING_THRESHOLD = 1 / 3
+    __ROUND_DURATION = 10  # 30 seconds
 
     class _Robot:
         def __init__(self, steering: Steering = Steering(), pos=(0., 0.)):
@@ -46,6 +49,7 @@ class RoomSimulation(SimulationBase):
         def objects(self):
             return *self.__proximity_sensors, self.__box
 
+        @property
         def pos(self):
             return self.__box.pos
 
@@ -109,12 +113,11 @@ class RoomSimulation(SimulationBase):
 
     def __init__(self, gui: GUI):
         super().__init__(gui, gravity=(0, 0), damping=0.02)
+        self.__round_start_timestamp = 0.
 
         self.__destination = SimulationBase._Box(pos=(1.25 * self._SCALE, 7.5 * self._SCALE),
                                                  size=(0.5 * self._SCALE, 0.5 * self._SCALE), color=(225, 208, 77),
                                                  dynamic=False, sensor=True)
-
-        # self.__keyboard_steering = KeyboardSteering()
 
         self.__population = list(map(lambda _: (
             self._Robot(pos=(
@@ -123,19 +126,22 @@ class RoomSimulation(SimulationBase):
             )),
             NeuralNetwork(self.__LAYERS)
         ), range(self.__POPULATION)))
+        self.__evolution = Evolution(list(map(lambda individual: individual[1], self.__population)))
 
         self.__network_visualization_widgets: list[Widget] = []
+        self.__last_visualization_timestamp = 0.
 
-        # self._Robot(steering=self.__keyboard_steering, pos=(0, 0)),
+        self.__keyboard_steering = KeyboardSteering()
+        self.__player = self._Robot(steering=self.__keyboard_steering, pos=(0, 0))
 
         super()._start()
 
     def close(self):
-        # self.__keyboard_steering.close()
+        self.__keyboard_steering.close()
         self._gui.remove_widgets(*self.__network_visualization_widgets)
         super().close()
 
-    def _init(self):
+    def _on_init(self):
         wall_color = (218, 168, 159)
 
         self._add_objects(
@@ -168,8 +174,32 @@ class RoomSimulation(SimulationBase):
 
         for robot, _ in self.__population:
             self._add_objects(*robot.objects())
+        self._add_objects(*self.__player.objects())
 
-    def _update(self, delta_time: float):
+        self.__round_start_timestamp = time.time()
+
+    def __start_next_round(self):
+        # TODO: determine whether destination is visible by robot (wall doesn't obstacle it);
+        # TODO: also measure distance moved by robot to favor robots that are getting to the destination by shortest path
+        # TODO: finish round earlier if all robots are stuck around same position for certain amount of time
+        destination_pos = self.__destination.pos
+
+        # Calculate score for each individual
+        scores: list[float] = list(
+            map(lambda individual: (10 * self._SCALE) - sqrt((individual[0].pos[0] - destination_pos[0]) ** 2 +
+                                                             (individual[0].pos[1] - destination_pos[1]) ** 2),
+                self.__population))
+
+        self.__evolution.evolve(scores)
+        self.__evolution.print_stats()
+
+    def _on_update(self, delta_time: float):
+        now = time.time()
+
+        if now - self.__round_start_timestamp > self.__ROUND_DURATION:
+            self.__round_start_timestamp = now
+            self.__start_next_round()
+
         for robot, network in self.__population:
             prediction = network.calculate(robot.get_sensors_values())
             if len(prediction) != self.__LAYERS[-1]:
@@ -182,9 +212,15 @@ class RoomSimulation(SimulationBase):
 
             robot.update(delta_time, self)
 
-        # Keep an eye on the first robot
-        self._set_camera_pos(self.__population[0][0].pos())
+        self.__player.update(delta_time, self)
+        self._set_camera_pos(self.__player.pos)
 
-        self._gui.remove_widgets(*self.__network_visualization_widgets)
-        self.__network_visualization_widgets = visualize_network(self.__population[0][1])
-        self._gui.add_widgets(tuple(self.__network_visualization_widgets))
+        # Keep an eye on the first robot
+        # self._set_camera_pos(self.__population[0][0].pos)
+
+        if now - self.__last_visualization_timestamp > 1 / 30:
+            self.__last_visualization_timestamp = now
+            self._gui.remove_widgets(*self.__network_visualization_widgets)
+            self.__network_visualization_widgets = visualize_network(self.__population[0][1])
+            if self._is_running:
+                self._gui.add_widgets(tuple(self.__network_visualization_widgets))

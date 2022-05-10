@@ -94,7 +94,7 @@ class Core(CommandsInterface):
                 return
             self.__exit_current_module(None)
 
-        loud_print("Running module: " + ModuleClass.__name__, True)
+        # loud_print("Running module: " + ModuleClass.__name__, True)
         self.__module = ModuleClass(self._gui)
 
         self._gui.set_title(GUIConsts.WINDOW_TITLE + ' | ' + (

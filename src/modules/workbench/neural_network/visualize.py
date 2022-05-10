@@ -1,3 +1,4 @@
+from src.gui.core.rect import Rect
 from src.modules.workbench.neural_network.network import NeuralNetwork
 from src.common.math import clamp_f, mix
 from src.gui.core.circle import Circle
@@ -15,15 +16,24 @@ def visualize_network(network: NeuralNetwork):
     positions: list[list[tuple[int, int]]] = []
     padding = 0.05
 
+    widgets.append(
+        Rect(pos=(WorkbenchView.VIEW_SIZE // 2, WorkbenchView.VIEW_SIZE + WorkbenchView.VISUALISATION_SIZE // 2),
+             size=(WorkbenchView.VIEW_SIZE, WorkbenchView.VISUALISATION_SIZE), background_color=(56, 50, 38))
+    )
+
     def add_node_circle(layer_index: int, neuron_index: int):
         pos = positions[layer_index][neuron_index]
         neuron_ = layers[layer_index][neuron_index]
 
-        value = clamp_f(neuron_.get_value(), 0, 1)
+        value = clamp_f(neuron_.get_value(), -1, 1)
         neuron_color = (
-            mix(203, 132, value),
-            mix(134, 199, value),
-            mix(121, 129, value),
+            mix(241, 80, value),
+            mix(239, 83, value),
+            mix(236, 239, value),
+        ) if value > 0 else (
+            mix(241, 101, -value),
+            mix(239, 204, -value),
+            mix(236, 156, -value),
         )
 
         widgets.append(
@@ -54,9 +64,9 @@ def visualize_network(network: NeuralNetwork):
             mix(239, 83, weight),
             mix(236, 239, weight),
         ) if weight >= 0 else (
-            mix(241, 218, weight),
-            mix(239, 198, weight),
-            mix(236, 38, weight),
+            mix(241, 101, -weight),
+            mix(239, 204, -weight),
+            mix(236, 156, -weight),
         )
         widgets.append(
             Line(pos_start=from_pos, pos_end=to_pos, color=connection_color)

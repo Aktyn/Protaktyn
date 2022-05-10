@@ -96,8 +96,8 @@ class SimulationBase:
 
     def __init__(self, gui: GUI, gravity=(0.0, 0.0), damping=0.99):
         self._gui = gui
-        self.__is_running = False
-        self.__simulate = False
+        self._is_running = False
+        self._simulate = False
 
         self.__camera_pos = (0.0, 0.0)
         self.__objects: list[SimulationBase._Object] = []
@@ -114,7 +114,7 @@ class SimulationBase:
 
     @abstractmethod
     def close(self):
-        self.__is_running = False
+        self._is_running = False
         self._remove_objects(*self.__objects)
         if self._simulation_process is not None:
             self._simulation_process.join()
@@ -127,14 +127,14 @@ class SimulationBase:
         """
             Switches between 60fps and maximum frequency.
         """
-        self.__simulate = enable
+        self._simulate = enable
 
     @abstractmethod
-    def _init(self):
+    def _on_init(self):
         pass
 
     @abstractmethod
-    def _update(self, delta_time: float):
+    def _on_update(self, delta_time: float):
         pass
 
     def _remove_objects(self, *objects: _Object):
@@ -169,26 +169,26 @@ class SimulationBase:
         self.__camera_pos = pos
 
     def __simulation_thread(self):
-        self.__is_running = True
+        self._is_running = True
 
-        self._init()
+        self._on_init()
 
         counter = 0
         last = time.time()
 
-        while self.__is_running:
+        while self._is_running:
             now = time.time()
-            delta_time = 1. / 60. if self.__simulate else now - last
+            delta_time = 1. / 60. if self._simulate else now - last
             if int(now) > int(last):
-                print(f"FPS: {counter}")
+                # print(f"FPS: {counter}")
                 counter = 0
             counter += 1
             last = now
 
-            self._update(delta_time)
+            self._on_update(delta_time)
             self.__space.step(delta_time)
             for obj in self.__objects:
                 obj.update(self.__camera_pos)
             self._gui.redraw()
-            if not self.__simulate:
+            if not self._simulate:
                 time.sleep(max(0.0, 1.0 / 60.0 - (time.time() - now)))
