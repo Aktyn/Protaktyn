@@ -14,6 +14,9 @@ class Rect(Widget):
     def set_angle(self, angle):
         self.__angle = angle
 
+    def set_background_color(self, background_color):
+        self.__background_color = background_color
+
     def draw(self, image: np.ndarray):
         d = sqrt(self._size[1] ** 2 + self._size[0] ** 2) / 2.0
         beta = atan2(self._size[1], self._size[0])

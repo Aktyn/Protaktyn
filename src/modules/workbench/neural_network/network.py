@@ -26,7 +26,42 @@ class NeuralNetwork:
             self.__value = self.__activation_function(value)
             return self.__value
 
-    def __init__(self, layers: list[int]):
+    @staticmethod
+    def compare_structure(network1: 'NeuralNetwork', network2: 'NeuralNetwork'):
+        """
+        Args:
+            network1: First network to compare
+            network2: Second network to compare
+
+        Returns:
+            False if the networks have different structure, True otherwise
+        """
+
+        # Compare number of layers
+        if len(network1.__layers) != len(network2.__layers):
+            return False
+
+        # Compare number of neurons in each layer
+        for layer_index in range(len(network1.__layers)):
+            if len(network1.__layers[layer_index]) != len(network2.__layers[layer_index]):
+                return False
+
+        # Compare number of connections
+        if len(network1.__connections) != len(network2.__connections):
+            return False
+
+        # Compare connections (ignore weights)
+        for connection_index in range(len(network1.__connections)):
+            from1 = network1.__connections[connection_index][0]
+            to1 = network1.__connections[connection_index][1]
+            from2 = network2.__connections[connection_index][0]
+            to2 = network2.__connections[connection_index][1]
+            if from1 != from2 or to1 != to2:
+                return False
+
+        return True
+
+    def __init__(self, layers: list[int], randomize_weights=False):
         if len(layers) < 2:
             raise ValueError("The network must have at least 2 layers (input and output layers).")
 
@@ -49,7 +84,7 @@ class NeuralNetwork:
                     self.__connections.append((
                         (layer_index, neuron_index),
                         (layer_index + 1, next_neuron_index),
-                        random.uniform(-1, 1)  # initial weight (it can be randomized); TODO: parameterize randomization
+                        random.uniform(-1, 1) if randomize_weights else 0.0  # initial weights
                     ))
 
     def __input_layer(self):
@@ -82,8 +117,19 @@ class NeuralNetwork:
         result: list[float] = list(map(lambda neuron_: neuron_.get_value(), self.__output_layer()))
         return result
 
+    def get_weights(self) -> list[float]:
+        return list(map(lambda conn: conn[2], self.__connections))
+
     def get_layers(self):
         return self.__layers
 
     def get_connections(self):
         return self.__connections
+
+    def set_weights(self, weights: list[float]):
+        if len(weights) != len(self.__connections):
+            raise ValueError("The number of weights must be equal to the number of connections.")
+
+        for connection_index in range(len(self.__connections)):
+            from_, to_, _ = self.__connections[connection_index]
+            self.__connections[connection_index] = (from_, to_, weights[connection_index])
