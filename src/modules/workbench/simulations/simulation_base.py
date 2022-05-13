@@ -1,10 +1,10 @@
 import time
-from typing import Optional
+from typing import Optional, Callable
 
 import pymunk
 from abc import abstractmethod
 from threading import Thread
-from pymunk import Vec2d
+from pymunk import Vec2d, Arbiter, Space
 from src.gui.core.gui import GUI
 from src.gui.core.line import Line
 from src.gui.core.rect import Rect
@@ -88,6 +88,7 @@ class SimulationBase:
 
     class _Box(_Object):
         def __init__(self, pos=(0.0, 0.0), size=(0.1, 0.1), color=(255, 255, 255), dynamic=True, sensor=False,
+                     collision_type=0,
                      render=True):
             super().__init__(pos, color)
             self.size = size
@@ -100,6 +101,7 @@ class SimulationBase:
             self.shape.elasticity = 0.99
             self.shape.friction = 0.99
             self.shape.sensor = sensor
+            self.shape.collision_type = collision_type
 
             self.widget = Rect(
                 pos=(0, 0),
@@ -154,6 +156,12 @@ class SimulationBase:
         """
         self._simulate = enable
 
+    def add_collision_handler(self, type_a: int, type_b: int, callback: Callable[[Arbiter, Space, any], None]):
+        ch = self.__space.add_collision_handler(type_a, type_b)
+        # ch.data['test'] = 1337
+        ch.post_solve = callback
+        return ch
+
     @abstractmethod
     def _on_init(self):
         pass
@@ -182,7 +190,8 @@ class SimulationBase:
             if obj.widget is not None:
                 self._gui.add_widgets((obj.widget,))
 
-    def _ray_cast(self, from_point: tuple[float, float], to_point: tuple[float, float], radius=0.00001, mask=0xFFFFFFFF):
+    def _ray_cast(self, from_point: tuple[float, float], to_point: tuple[float, float], radius=0.00001,
+                  mask=0xFFFFFFFF):
         segment = self.__space.segment_query_first(start=from_point, end=to_point, radius=radius,
                                                    shape_filter=pymunk.ShapeFilter(
                                                        mask=mask) if mask != 0xFFFFFFFF else self.__empty_filter)
