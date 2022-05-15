@@ -20,20 +20,22 @@ from src.modules.workbench.simulations.simulation_base import SimulationBase
 class RoomSimulation(SimulationBase):
     _SENSOR_RANGE = 2
     _SCALE = 0.1
-    __POPULATION_SIZE = 200
-    __RENDER_POPULATION_SIZE = 200
-    __LAYERS = [3, 16, 2]
+    __POPULATION_SIZE = 150
+    __RENDER_POPULATION_SIZE = 50
+    __LAYERS = [3, 8, 2]
     __STEERING_THRESHOLD = 1 / 3
     __ROUND_DURATION = 25
     _STUCK_DURATION = 5
     _STUCK_DISTANCE_THRESHOLD = 1
     _SAFE_DISTANCE_FROM_WALL = 0.10
     _RENDER_SENSORS = False
+    __POINTS_DISTANCE = 0.5
 
     class _Robot:
         def __init__(self, steering: Steering = Steering(), pos=(0., 0.), can_stuck=True, render=True):
             self.__delta_timer = 0.0
             self.__arrived = False
+            self.__arrived_time = 0.0
             self.__stuck = False
             self.__stuck_time = 0.0
             self.__can_stuck = can_stuck
@@ -74,11 +76,16 @@ class RoomSimulation(SimulationBase):
 
         def set_arrived(self):
             self.__arrived = True
+            self.__arrived_time = self.__delta_timer
             self.__box.set_color((128, 255, 128))
 
         @property
         def arrived(self):
             return self.__arrived
+
+        @property
+        def arrived_time(self):
+            return self.__arrived_time
 
         @property
         def pos(self):
@@ -101,16 +108,19 @@ class RoomSimulation(SimulationBase):
             return self.__moved_distance
 
         def register_path_distance(self, distance: float):
-            self.__moved_distance = max(distance, self.__moved_distance)
+            # self.__moved_distance = max(distance, self.__moved_distance)
+            self.__moved_distance = distance
 
         def respawn(self):
             self.__arrived = False
+            self.__arrived_time = 0.0
             self.__stuck = False
             self.__stuck_time = 0.0
             self.__delta_timer = 0.0
             self.__last_position_check_timestamp = 0
             self.__last_position_check_position = (0., 0.)
             self.__box.set_color((255, 196, 128))
+            self.__proximity_sensors_values = [0.] * len(self.__proximity_sensors_values)
 
             self.__moved_distance = 0.0
             self.__last_position = (0., 0.)
@@ -142,22 +152,7 @@ class RoomSimulation(SimulationBase):
 
             self.__last_position = (self.pos[0], self.pos[1])
 
-            if self.steering is not None:
-                if self.steering.FORWARD:
-                    self.__box.body.set_velocity(
-                        (cos(self.__box.body.angle + pi / 2.0) * self.__movement_speed,
-                         sin(self.__box.body.angle + pi / 2.0) * self.__movement_speed)
-                    )
-                if self.steering.BACKWARD:
-                    self.__box.body.set_velocity(
-                        (cos(self.__box.body.angle + pi / 2.0) * -self.__movement_speed,
-                         sin(self.__box.body.angle + pi / 2.0) * -self.__movement_speed)
-                    )
-                if self.steering.LEFT:
-                    self.__box.body.set_angular_velocity(self.__rotation_speed)
-                if self.steering.RIGHT:
-                    self.__box.body.set_angular_velocity(-self.__rotation_speed)
-
+            touching_wall = False
             for i, sensor in enumerate(self.__proximity_sensors):
                 c = cos(self.__box.body.angle + pi / 2.0 * float(i))
                 s = sin(self.__box.body.angle + pi / 2.0 * float(i))
@@ -179,11 +174,14 @@ class RoomSimulation(SimulationBase):
                 if contact_point is not None:
                     distance = sqrt((contact_point[0] - sensor.pos[0]) ** 2 + (contact_point[1] - sensor.pos[1]) ** 2)
 
-                    if self.__can_stuck and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + \
-                            (self.__box.size[0] / 2.0):
-                        self.__stuck = True
-                        self.__stuck_time = self.__delta_timer
-                        self.__box.set_color((197, 190, 176))
+                    # if self.__can_stuck and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + \
+                    #         (self.__box.size[0] / 2.0):
+                    #     self.__stuck = True
+                    #     self.__stuck_time = self.__delta_timer
+                    #     self.__box.set_color((197, 190, 176))
+                    if not touching_wall and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + (
+                            self.__box.size[0] / 2.0):
+                        touching_wall = True
 
                     normalized_distance = distance / (RoomSimulation._SENSOR_RANGE * RoomSimulation._SCALE)
                     self.__proximity_sensors_values[i] = 1.0 - normalized_distance
@@ -199,6 +197,25 @@ class RoomSimulation(SimulationBase):
                 else:
                     self.__proximity_sensors_values[i] = 0.0
                     sensor.set_color(self.__sensor_color)
+
+            if self.steering is not None:
+                speed = self.__movement_speed if not touching_wall else self.__movement_speed * 0.2
+                rotation_speed = self.__rotation_speed if not touching_wall else self.__rotation_speed * 0.2
+
+                if self.steering.FORWARD:
+                    self.__box.body.set_velocity(
+                        (cos(self.__box.body.angle + pi / 2.0) * speed,
+                         sin(self.__box.body.angle + pi / 2.0) * speed)
+                    )
+                if self.steering.BACKWARD:
+                    self.__box.body.set_velocity(
+                        (cos(self.__box.body.angle + pi / 2.0) * -speed,
+                         sin(self.__box.body.angle + pi / 2.0) * -speed)
+                    )
+                if self.steering.LEFT:
+                    self.__box.body.set_angular_velocity(rotation_speed)
+                if self.steering.RIGHT:
+                    self.__box.body.set_angular_velocity(-rotation_speed)
 
     def __init__(self, gui: GUI):
         super().__init__(gui, gravity=(0, 0), damping=0.02)
@@ -219,7 +236,6 @@ class RoomSimulation(SimulationBase):
 
         self.__path_points: list[tuple[float, float]] = []
 
-        points_distance = 0.75 * self._SCALE
         for p_i in range(len(path) - 1):
             x1, y1 = path[p_i]
             x2, y2 = path[p_i + 1]
@@ -231,7 +247,7 @@ class RoomSimulation(SimulationBase):
                 xx = x1 + (x2 - x1) * d / segment_length
                 yy = y1 + (y2 - y1) * d / segment_length
                 self.__path_points.append((xx * self._SCALE, yy * self._SCALE))
-                d += points_distance
+                d += self.__POINTS_DISTANCE * self._SCALE
 
         self.__robots = list(map(lambda index: self._Robot(pos=(
             random.uniform(-0.4 * self._SCALE, 0.4 * self._SCALE),
@@ -243,7 +259,7 @@ class RoomSimulation(SimulationBase):
                 map(lambda _: NeuralNetwork(self.__LAYERS, randomize_weights=True), range(self.__POPULATION_SIZE))),
             evolution_config=EvolutionConfig(
                 elitism=4 / float(self.__POPULATION_SIZE),
-                mutation_chance=0.05,
+                mutation_chance=0.1,
                 mutation_scale=1
             )
         )
@@ -307,27 +323,31 @@ class RoomSimulation(SimulationBase):
 
     def __start_next_round(self):
         def rate_robot(robot_: RoomSimulation._Robot):
-            obstacles_to_destination = self._ray_cast_all(robot_.pos, self.__destination.pos, 0xFFFFFFFF ^ 0x0002)
-            obstacles_count = max(0, (len(obstacles_to_destination) - 1))
+            # obstacles_to_destination = self._ray_cast_all(robot_.pos, self.__destination.pos, 0xFFFFFFFF ^ 0x0002)
+            # obstacles_count = max(0, (len(obstacles_to_destination) - 1))
 
-            obstacles_score = 1 if obstacles_count == 0 else -0.25 * obstacles_count
+            # obstacles_score = 1 if obstacles_count == 0 else -0.1 * obstacles_count
 
-            destination_distance_squared = (robot_.pos[0] - self.__destination.pos[0]) ** 2 + \
-                                           (robot_.pos[1] - self.__destination.pos[1]) ** 2
+            # destination_distance_squared = (robot_.pos[0] - self.__destination.pos[0]) ** 2 + \
+            #                               (robot_.pos[1] - self.__destination.pos[1]) ** 2
 
             # Note that 1 is maximum distance_score value
-            destination_distance_score = (1.0 - sqrt(destination_distance_squared)) * 0.5
+            # destination_distance_score = (1.0 - sqrt(destination_distance_squared)) * 0.5
 
-            destination_reached = robot_.arrived  # destination_distance_squared < self.__destination.size[0] ** 2
             # Note that robot is rewarded for more moved distance if it has not reached the destination.
             # This is to favor robots that are not stucking in place
-            moved_distance_score = 5 if destination_reached else robot_.moved_distance * 4
+            moved_distance_score = 2 + (
+                        1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
+                else robot_.moved_distance
 
-            stuck_score = (-RoomSimulation.__ROUND_DURATION + robot_.stuck_time) / RoomSimulation.__ROUND_DURATION * 1 \
-                if robot_.stuck else 1
+            stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
+                if robot_.stuck else 0
 
-            # print(destination_distance_score, obstacles_score, moved_distance_score, stuck_score)
-            return destination_distance_score + obstacles_score + moved_distance_score + stuck_score
+            # sensor_values = robot_.get_sensors_values()
+            # wall_distance_score = -max(sensor_values) * 0.1
+
+            # print(moved_distance_score, wall_distance_score, stuck_time_score)
+            return moved_distance_score + stuck_time_score
 
         # Calculate score for each individual
         scores: list[float] = list(map(rate_robot, self.__robots))
@@ -346,7 +366,14 @@ class RoomSimulation(SimulationBase):
             if point_distance < closest_point_distance:
                 closest_point_distance = point_distance
                 closest_point_index = i
-        return closest_point_index / len(self.__path_points)
+
+        points_difference_factor = 0.
+        if closest_point_index < len(self.__path_points) - 1:
+            next_x, next_y = self.__path_points[closest_point_index + 1]
+            next_point_distance = sqrt((next_x - robot.pos[0]) ** 2 + (next_y - robot.pos[1]) ** 2)
+            points_difference_factor = 1.0 - abs(closest_point_distance - next_point_distance) / (
+                    self.__POINTS_DISTANCE * self._SCALE)
+        return (closest_point_index + points_difference_factor) / len(self.__path_points)
 
     def _on_update(self, delta_time: float):
         all_robots_are_stuck = True
@@ -375,6 +402,7 @@ class RoomSimulation(SimulationBase):
 
         self.__round_duration_timer += delta_time
         if all_robots_are_stuck or self.__round_duration_timer >= self.__ROUND_DURATION:
+            # remaining_round_duration = max(0.0, self.__ROUND_DURATION - self.__round_duration_timer)
             self.__round_duration_timer = 0
             self.__start_next_round()
 

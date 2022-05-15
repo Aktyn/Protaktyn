@@ -2,7 +2,7 @@ import math
 import random
 from typing import TypeVar, Generic
 
-from src.common.math import normalize_array
+from src.common.math import normalize_array, mix, linearly_weighted_average
 from src.modules.workbench.neural_network.network import NeuralNetwork
 
 GenomeType = TypeVar('GenomeType')  # TypeVar('GenomeType', NeuralNetwork, OtherCrossover-ableClass)
@@ -35,11 +35,62 @@ class EvolutionConfig:
 
 
 class Evolution(Generic[GenomeType]):
+    _FITNESS_HISTORY_SIZE = 4
+    _ANCESTOR_FITNESS_SCALE = 0.25  # TODO: move it to EvolutionConfig
+
     class _Individual(Generic[GenomeType]):
         def __init__(self, species_id: int, genome: GenomeType):
             self.species_id = species_id
             self.genome = genome  # Object to crossover
-            self.fitness = 0.0  # NOTE: This value is probably normalized across the population
+            self.__fitness = 0.0  # NOTE: This value is probably normalized across the population
+            self.__computed_overall_fitness = 0.0
+            self.ancestors_fitness: list[float] = []
+
+        @property
+        def fitness(self):
+            return self.__fitness
+
+        @fitness.setter
+        def fitness(self, value: float):
+            self.__fitness = value
+            self.__update_overall_fitness()
+
+        def __update_overall_fitness(self):
+            self.__computed_overall_fitness = self.__fitness + \
+                                              linearly_weighted_average(
+                                                  self.ancestors_fitness, reverse=True
+                                              ) * Evolution._ANCESTOR_FITNESS_SCALE
+
+        @property
+        def overall_fitness(self) -> float:
+            """
+            Note that returned value may be larger than 1 since ancestors fitness values are added to current fitness
+            Returns:
+                Fitness value calculated according to ancestors fitness values and current fitness
+            """
+            return self.__computed_overall_fitness
+
+        def crossover_fitness(self, parent_a: 'Evolution._Individual', parent_b: 'Evolution._Individual',
+                              crossover_chance: float):
+            parents_average_fitness = mix(parent_a.fitness, parent_b.fitness, crossover_chance)
+            self.fitness = parents_average_fitness
+            self.ancestors_fitness = [parents_average_fitness]
+
+            for i in range(max(len(parent_a.ancestors_fitness), len(parent_b.ancestors_fitness))):
+                if len(self.ancestors_fitness) >= Evolution._FITNESS_HISTORY_SIZE:
+                    break
+
+                parent_a_fitness = parent_a.ancestors_fitness[i] if i < len(parent_a.ancestors_fitness) else None
+                parent_b_fitness = parent_b.ancestors_fitness[i] if i < len(parent_b.ancestors_fitness) else None
+
+                if parent_a_fitness is not None and parent_b_fitness is not None:
+                    self.ancestors_fitness.append(mix(parent_a_fitness, parent_b_fitness, crossover_chance))
+                elif parent_a_fitness is not None:
+                    self.ancestors_fitness.append(parent_a_fitness)
+                elif parent_b_fitness is not None:
+                    self.ancestors_fitness.append(parent_b_fitness)
+
+            self.__update_overall_fitness()
 
     class _Species:
         def __init__(self):
@@ -57,8 +108,8 @@ class Evolution(Generic[GenomeType]):
         self.__genomes_type = type(genomes[0])
         self.__config = evolution_config
         self.__generation = 0
-        self.__best_score = 0.0
-        self.__average_score = 0.0
+        self.__best_generation_score = 0.0
+        self.__average_generation_score = 0.0
 
         self.__species_counter = 0
         self.__species: dict[int, Evolution._Species] = {
@@ -94,12 +145,18 @@ class Evolution(Generic[GenomeType]):
     #     return self.__generation
 
     def print_stats(self):
-        # TODO: population of each species
+        species_populations: dict[int, int] = {}
+        for individual in self.individuals:
+            if individual.species_id not in species_populations:
+                species_populations[individual.species_id] = 1
+            else:
+                species_populations[individual.species_id] += 1
+
         print(f'''--- EVOLUTION STATISTICS ---
             Generation: {self.__generation}
-            Best score: {self.__best_score}
-            Average score: {self.__average_score}
-            Number of species: {len(self.__species)}
+            Best score: {self.__best_generation_score}
+            Average score: {self.__average_generation_score}
+            Species: count={len(self.__species)}; populations={list(species_populations.values())}
         ''')
 
     @staticmethod
@@ -149,7 +206,8 @@ class Evolution(Generic[GenomeType]):
                 # Mutation
                 for j in range(len(segment)):
                     if random.random() < self.__config.mutation_chance:
-                        segment[j] += random.uniform(-self.__config.mutation_scale, self.__config.mutation_scale)
+                        # segment[j] += random.uniform(-self.__config.mutation_scale, self.__config.mutation_scale)
+                        segment[j] += random.gauss(0, 0.4) * self.__config.mutation_scale
                 evolved_weights.extend(segment)
 
             evolved_genome.set_weights(evolved_weights)
@@ -158,12 +216,10 @@ class Evolution(Generic[GenomeType]):
             raise ValueError("Unsupported genome type. Cannot crossover.")
 
         child = Evolution._Individual[GenomeType](species_id=parent_a.species_id, genome=evolved_genome)
-
-        # Estimate child fitness by averaging both parent fitness values (this is mostly for debugging purposes)
-        child.fitness = (parent_a.fitness + parent_b.fitness) / 2.0
+        child.crossover_fitness(parent_a, parent_b, self.__config.crossover_chance)
         return child
 
-    def __crossover_species(self, species_individuals: list[tuple[_Individual[GenomeType], int]]):
+    def __crossover_species(self, species_individuals: list[_Individual[GenomeType]]):
         """
         Crossover individuals in a species
 
@@ -176,21 +232,36 @@ class Evolution(Generic[GenomeType]):
         species_size = len(species_individuals)
         elite_count = math.ceil(species_size * self.__config.elitism)
 
-        new_species_generation: list[tuple[Evolution._Individual[GenomeType], int]] = species_individuals[:elite_count]
+        new_species_generation = species_individuals[:elite_count]
+
+        species_individuals.sort(key=lambda individual_: individual_.overall_fitness, reverse=True)
+        species_normalized_fitness_array = normalize_array(
+            list(map(lambda individual: individual.overall_fitness, species_individuals))
+        )
+
+        # print(species_normalized_fitness_array)
 
         def get_partner_index():
-            distribution_value = self.__distribution(0.999999)
-            return math.floor(distribution_value * len(species_individuals))
+            distribution_value = 1.0 - self.__distribution(1)  # self.__distribution(0.999999) ** 2
+
+            j = 0
+            for fitness in species_normalized_fitness_array[1:]:
+                if fitness < distribution_value:
+                    break
+                j += 1
+            return j
+            # return math.floor(distribution_value * len(species_individuals))
 
         for i in range(elite_count, species_size):
-            individual, index = species_individuals[i]
+            parent_a = species_individuals[i]
 
             other_parent_index = get_partner_index()
-            while other_parent_index >= len(species_individuals) or other_parent_index == index:
+            while other_parent_index >= len(species_individuals) or other_parent_index == i:
                 other_parent_index = get_partner_index()
 
-            child = self.__crossover(individual, species_individuals[other_parent_index][0])
-            new_species_generation.append((child, index))
+            parent_b = species_individuals[other_parent_index]
+            child = self.__crossover(parent_a, parent_b)
+            new_species_generation.append(child)
 
         return new_species_generation
 
@@ -198,30 +269,26 @@ class Evolution(Generic[GenomeType]):
         if len(scores) != self.population_size:
             raise ValueError("Scores size does not match population size")
 
-        self.__best_score = max(scores)
-        self.__average_score = sum(scores) / len(scores)
+        self.__best_generation_score = max(scores)
+        self.__average_generation_score = sum(scores) / len(scores)
         scores = normalize_array(scores)
 
         # Assign scores to individuals
         for i, individual in enumerate(self.individuals):
-            # TODO: store fitness values of parents for better overall fitness calculation during crossover;
-            #  parent fitness values can be averaged with linear weights for better selection;
-            #  individuals with little score in current generation can still carry good genes from ancestors therefore
-            #  those individuals with more successful ancestors should be more likely to be selected
             individual.fitness = scores[i]
 
-        # Sort individuals by fitness
+        # Sort individuals by fitness (sorting occurs also in __crossover_species)
         self.individuals.sort(key=lambda individual_: individual_.fitness, reverse=True)
 
         # Keys are species id; values are list of _Individual and its original index pairs
-        species_groups: dict[int, list[tuple[Evolution._Individual[GenomeType], int]]] = {}
-        for i, individual in enumerate(self.individuals):
+        species_groups: dict[int, list[Evolution._Individual[GenomeType]]] = {}
+        for individual in self.individuals:
             species_id = individual.species_id
             if species_id not in species_groups:
                 species_groups[species_id] = []
-            species_groups[species_id].append((individual, i))
+            species_groups[species_id].append(individual)
 
-        evolved_individuals: list[tuple[Evolution._Individual[GenomeType], int]] = []
+        evolved_individuals: list[Evolution._Individual[GenomeType]] = []
 
         # Evolve each species
         for species_group in species_groups.values():
@@ -232,8 +299,9 @@ class Evolution(Generic[GenomeType]):
         if len(evolved_individuals) != self.population_size:
             raise ValueError(
                 "Evolved individuals size does not match population size. There must have been a problem with crossover")
-        for evolved, index in evolved_individuals:
-            self.individuals[index] = evolved
+        # for evolved, index in evolved_individuals:
+        #     self.__individuals[index] = evolved
+        self.__individuals = evolved_individuals
 
         for species_id in self.__species:
             self.__species[species_id].generation += 1

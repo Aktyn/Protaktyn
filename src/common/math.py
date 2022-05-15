@@ -21,12 +21,15 @@ def normalize_array(array: list[float], try_handle_small_values=True):
     return [(x - min_value) / max_value for x in array]
 
 
-def linearly_weighted_average(values: list[float]):
+def linearly_weighted_average(values: list[float], reverse=False):
     sum_ = 0.
+    if len(values) == 0:
+        return 0.
+    values_count = len(values)
+    # sum of sequence of consecutive integer numbers in range [1, values_count]
+    weights_sum = (values_count ** 2 + values_count) / 2
 
     for index, value in enumerate(values):
-        sum_ += value * (index + 1)
+        sum_ += value * (index + 1 if not reverse else values_count - index)
 
-    values_count = len(values)
-    weights_sum = (values_count ** 2 + values_count) / 2
     return sum_ / weights_sum
