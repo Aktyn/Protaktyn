@@ -1,4 +1,3 @@
-from src.gui.core.rect import Rect
 from src.modules.workbench.neural_network.network import NeuralNetwork
 from src.common.math import clamp_f, mix
 from src.gui.core.circle import Circle
@@ -7,25 +6,25 @@ from src.gui.core.widget import Widget
 from src.modules.workbench.view import WorkbenchView
 
 
-def visualize_network(network: NeuralNetwork):
-    layers = network.get_layers()
-    connections = network.get_connections()
+def visualize_network(network: NeuralNetwork, view_x: float, view_y: float, view_width: float, view_height: float):
+    layers = network.layers
+    connections = network.connections
 
     widgets: list[Widget] = []
 
     positions: list[list[tuple[int, int]]] = []
     padding = 0.05
 
-    widgets.append(
-        Rect(pos=(WorkbenchView.VIEW_SIZE // 2, WorkbenchView.VIEW_SIZE + WorkbenchView.VISUALISATION_SIZE // 2),
-             size=(WorkbenchView.VIEW_SIZE, WorkbenchView.VISUALISATION_SIZE), background_color=(56, 50, 38))
-    )
+    def transpose_pos(pos: tuple[int, int]):
+        return (int(pos[0] * view_width + view_x * WorkbenchView.VIEW_SIZE),
+                int(WorkbenchView.VIEW_SIZE + (pos[1] - WorkbenchView.VIEW_SIZE) * view_height +
+                    view_y * WorkbenchView.VISUALISATION_SIZE))
 
     def add_node_circle(layer_index: int, neuron_index: int):
         pos = positions[layer_index][neuron_index]
         neuron_ = layers[layer_index][neuron_index]
 
-        value = clamp_f(neuron_.get_value(), -1, 1)
+        value = clamp_f(neuron_.value, -1, 1)
         neuron_color = (
             mix(241, 80, value),
             mix(239, 83, value),
@@ -37,7 +36,8 @@ def visualize_network(network: NeuralNetwork):
         )
 
         widgets.append(
-            Circle(pos, radius=int(WorkbenchView.VISUALISATION_SIZE * 0.025), background_color=neuron_color),
+            Circle(transpose_pos(pos), radius=int(WorkbenchView.VISUALISATION_SIZE * 0.025 * view_height),
+                   background_color=neuron_color),
         )
 
     largest_layer_size = max(map(len, layers))
@@ -69,13 +69,11 @@ def visualize_network(network: NeuralNetwork):
             mix(236, 156, -weight),
         )
         widgets.append(
-            Line(pos_start=from_pos, pos_end=to_pos, color=connection_color)
+            Line(pos_start=transpose_pos(from_pos), pos_end=transpose_pos(to_pos), color=connection_color)
         )
 
-    for connection in connections:
-        add_node_circle(connection[0][0], connection[0][1])
-
-        if connection[1][0] == len(layers) - 1:
-            add_node_circle(connection[1][0], connection[1][1])
+    for i, layer in enumerate(layers):
+        for j in range(len(layer)):
+            add_node_circle(i, j)
 
     return widgets

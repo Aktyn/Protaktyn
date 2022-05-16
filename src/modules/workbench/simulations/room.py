@@ -1,11 +1,12 @@
 import random
 import time
-from math import cos, sin, pi, sqrt, inf
+from math import cos, sin, pi, sqrt, inf, ceil
 
 from pymunk import Arbiter, Space
 
 from src.common.math import mix
 from src.gui.core.gui import GUI
+from src.gui.core.rect import Rect
 from src.gui.core.widget import Widget
 from src.modules.workbench.common.steering import Steering, KeyboardSteering
 from src.modules.workbench.evolution.evolution import Evolution, EvolutionConfig
@@ -13,8 +14,8 @@ from src.modules.workbench.neural_network.network import NeuralNetwork
 from src.modules.workbench.neural_network.visualize import visualize_network
 from src.modules.workbench.simulations.simulation_base import SimulationBase
 
-
 # NOTE: All length/size values in this file should be in meters except of RoomSimulation.SCALE which allows for a reasonable size preview
+from src.modules.workbench.view import WorkbenchView
 
 
 class RoomSimulation(SimulationBase):
@@ -22,7 +23,7 @@ class RoomSimulation(SimulationBase):
     _SCALE = 0.1
     __POPULATION_SIZE = 150
     __RENDER_POPULATION_SIZE = 50
-    __LAYERS = [3, 8, 2]
+    __LAYERS = [3, 3, 2]
     __STEERING_THRESHOLD = 1 / 3
     __ROUND_DURATION = 25
     _STUCK_DURATION = 5
@@ -260,7 +261,10 @@ class RoomSimulation(SimulationBase):
             evolution_config=EvolutionConfig(
                 elitism=4 / float(self.__POPULATION_SIZE),
                 mutation_chance=0.1,
-                mutation_scale=1
+                mutation_scale=1,
+                maximum_species=16,
+                species_creation_chance=1.0,  # 0.5,
+                species_extinction_chance=0.1
             )
         )
 
@@ -337,7 +341,7 @@ class RoomSimulation(SimulationBase):
             # Note that robot is rewarded for more moved distance if it has not reached the destination.
             # This is to favor robots that are not stucking in place
             moved_distance_score = 2 + (
-                        1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
+                    1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
                 else robot_.moved_distance
 
             stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
@@ -414,6 +418,27 @@ class RoomSimulation(SimulationBase):
         if now - self.__last_visualization_timestamp > 0.1:
             self.__last_visualization_timestamp = now
             self._gui.remove_widgets(*self.__network_visualization_widgets)
-            self.__network_visualization_widgets = visualize_network(self.__evolution.individuals[0].genome)
+            self.__network_visualization_widgets = [
+                Rect(
+                    pos=(WorkbenchView.VIEW_SIZE // 2, WorkbenchView.VIEW_SIZE + WorkbenchView.VISUALISATION_SIZE // 2),
+                    size=(WorkbenchView.VIEW_SIZE, WorkbenchView.VISUALISATION_SIZE),
+                    # background_color=(56, 50, 38)
+                    background_color=(56, 50, 38)
+                )
+            ]
+            species_groups = self.__evolution.get_population_grouped_by_species()
+            horizontal_cells = ceil(sqrt(len(species_groups)))
+            vertical_cells = ceil(len(species_groups) / horizontal_cells)
+            cell_width = 1 / horizontal_cells
+            cell_height = 1 / vertical_cells
+            enum = enumerate(sorted(species_groups.values(), key=lambda ind: ind[0].species_id))
+            for i, species_individuals in enum:
+                x_i = i % horizontal_cells
+                y_i = i // horizontal_cells
+                self.__network_visualization_widgets.extend(
+                    visualize_network(species_individuals[0].genome, cell_width * x_i, cell_height * y_i, cell_width,
+                                      cell_height)
+                )
+            # self.__network_visualization_widgets.extend(visualize_network(self.__evolution.individuals[0].genome))
             if self._is_running:
                 self._gui.add_widgets(tuple(self.__network_visualization_widgets))
