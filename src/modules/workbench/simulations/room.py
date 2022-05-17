@@ -21,9 +21,9 @@ from src.modules.workbench.view import WorkbenchView
 class RoomSimulation(SimulationBase):
     _SENSOR_RANGE = 2
     _SCALE = 0.1
-    __POPULATION_SIZE = 150
-    __RENDER_POPULATION_SIZE = 50
-    __LAYERS = [3, 3, 2]
+    __POPULATION_SIZE = 200
+    __RENDER_POPULATION_SIZE = 100
+    __LAYERS = [3, 8, 2]
     __STEERING_THRESHOLD = 1 / 3
     __ROUND_DURATION = 25
     _STUCK_DURATION = 5
@@ -262,8 +262,9 @@ class RoomSimulation(SimulationBase):
                 elitism=4 / float(self.__POPULATION_SIZE),
                 mutation_chance=0.1,
                 mutation_scale=1,
-                maximum_species=16,
-                species_creation_chance=1.0,  # 0.5,
+                species_maturation_generations=20,
+                maximum_species=6,
+                species_creation_chance=0.1,
                 species_extinction_chance=0.1
             )
         )

@@ -15,6 +15,7 @@ class EvolutionConfig:
                  crossover_chance=0.5,
                  mutation_chance=0.1,
                  mutation_scale=0.1,
+                 species_maturation_generations=32,
                  maximum_species=16,
                  species_creation_chance=0.05,
                  species_extinction_chance=0.05
@@ -26,6 +27,7 @@ class EvolutionConfig:
             crossover_chance: the chance of passing other parent's dna segment into the child's dna (should be around 0.5 for even crossover)
             mutation_chance: the chance of performing mutation
             mutation_scale: the scale of the mutation
+            species_maturation_generations: minimum number of generations a species must achieve before it can be considered mature enough to extinct
             maximum_species: maximum number of species that can exist at the same time
             species_creation_chance: chance of splitting biggest species into two smaller ones during evolution process
             species_extinction_chance: chance of extinction of the worst fitting species
@@ -39,6 +41,7 @@ class EvolutionConfig:
         self.crossover_chance = crossover_chance
         self.mutation_chance = mutation_chance
         self.mutation_scale = mutation_scale
+        self.species_maturation_generations = species_maturation_generations
         self.maximum_species = maximum_species
         self.species_creation_chance = species_creation_chance
         self.species_extinction_chance = species_extinction_chance
@@ -106,7 +109,7 @@ class Evolution(Generic[GenomeType]):
         def __init__(self, species_id: int, population_size: int):
             self.__id = species_id
             self.population_size = population_size
-            self.generation = 0  # Works as species age; #TODO: utilize this
+            self.generation = 0  # Works as species age. Only mature enough species can extinct.
 
         @property
         def id(self):
@@ -175,11 +178,73 @@ class Evolution(Generic[GenomeType]):
         for chosen_individual in chosen_species_individuals:
             chosen_individual.species_id = self.__species_counter
 
+        print(
+            f"Created species {self.__species[self.__species_counter].id} with {self.__species[self.__species_counter].population_size} individuals\n\tparent species id: {chosen_species.id}")
         self.__species_counter += 1
 
+    def __estimate_species_fitness(self, species_id: int):
+        species_individuals = filter(lambda individual_: individual_.species_id == species_id, self.__individuals)
+
+        overall_fitness_values: list[float] = list(
+            map(lambda individual_: individual_.overall_fitness, species_individuals))
+        overall_fitness_values.sort()
+
+        return linearly_weighted_average(overall_fitness_values)
+
     def __extinct_least_fitted_species(self):
-        # TODO
-        pass
+        mature_species = list(
+            filter(lambda s: s.generation >= self.__config.species_maturation_generations, self.__species.values()))
+
+        if len(mature_species) == 0:
+            return
+
+        least_fitted_mature_species = min(mature_species, key=lambda s: self.__estimate_species_fitness(s.id))
+
+        self.__species.pop(least_fitted_mature_species.id)
+
+        extinct_species_individuals_indexes = list(filter(
+            lambda i_i: self.__individuals[i_i].species_id == least_fitted_mature_species.id,
+            range(len(self.__individuals))
+        ))
+
+        # Extend remaining species populations to fill loss after extincted species
+        species_groups = self.get_population_grouped_by_species(only_existing_species=True)
+        species_group_indexes = list(species_groups.keys())
+        species_group_i = 0
+        while len(extinct_species_individuals_indexes) > 0:
+            species_individuals = species_groups[species_group_indexes[species_group_i]]
+
+            species_individuals.sort(key=lambda individual_: individual_.overall_fitness, reverse=True)
+            species_normalized_fitness_array = normalize_array(
+                list(map(lambda individual: individual.overall_fitness, species_individuals))
+            )
+
+            def get_parent_index():
+                distribution_value = 1.0 - self.__distribution(1)
+
+                j = 0
+                for fitness in species_normalized_fitness_array[1:]:
+                    if fitness < distribution_value:
+                        break
+                    j += 1
+                return j
+
+            parent_a_index = get_parent_index()
+
+            parent_b_index = get_parent_index()
+            while parent_b_index >= len(species_individuals) or parent_b_index == parent_a_index:
+                parent_b_index = get_parent_index()
+
+            new_individual = self.__crossover(species_individuals[parent_a_index], species_individuals[parent_b_index])
+
+            individual_id = extinct_species_individuals_indexes.pop()
+            self.__individuals[individual_id] = new_individual
+            self.__species[new_individual.species_id].population_size += 1
+
+            species_group_i = (species_group_i + 1) % len(species_group_indexes)
+
+        print(
+            f"Extincted least fitted species with id {least_fitted_mature_species.id} and population size {least_fitted_mature_species.population_size}")
 
     @property
     def individuals(self):
@@ -190,22 +255,24 @@ class Evolution(Generic[GenomeType]):
         return len(self.__individuals)
 
     @property
-    def __minimum_species_population(self):
-        return self.population_size // self.__config.maximum_species
+    def generation(self):
+        return self.__generation
 
-    def get_population_grouped_by_species(self):
+    @property
+    def __minimum_species_population(self):
+        return max(2, self.population_size // self.__config.maximum_species)
+
+    def get_population_grouped_by_species(self, only_existing_species=False):
         # Keys are species id; values are list of _Individual and its original index pairs
         groups: dict[int, list[Evolution._Individual[GenomeType]]] = {}
         for individual in self.individuals:
             species_id = individual.species_id
+            if only_existing_species and species_id not in self.__species:
+                continue
             if species_id not in groups:
                 groups[species_id] = []
             groups[species_id].append(individual)
         return groups
-
-    # @property
-    # def generation(self):
-    #     return self.__generation
 
     def print_stats(self):
         species_groups = self.get_population_grouped_by_species()
@@ -235,7 +302,7 @@ Species ({len(self.__species)}):
             minimum_hidden_layers = 1
             maximum_hidden_layers = 8
             structure_mutation_add_layer_chance = 0.1
-            structure_mutation_remove_layer_chance = 0.1
+            structure_mutation_remove_layer_chance = 0.05
             structure_mutation_add_neuron_chance = 0.2
             structure_mutation_remove_neuron_chance = 0.2
             structure_mutation_add_connection_chance = 0.3
@@ -324,7 +391,7 @@ Species ({len(self.__species)}):
 
             layers_structure = list(map(lambda layer: len(layer), network_a.layers))
             evolved_genome = NeuralNetwork(layers_structure, randomize_weights=False)
-            evolved_genome.set_connections(network_a.connections, randomize_weights=True)
+            evolved_genome.set_connections(network_a.connections, randomize_weights=False)
 
             weights_a = network_a.get_weights()
             weights_b = network_b.get_weights()
@@ -383,10 +450,8 @@ Species ({len(self.__species)}):
             list(map(lambda individual: individual.overall_fitness, species_individuals))
         )
 
-        # print(species_normalized_fitness_array)
-
-        def get_partner_index():
-            distribution_value = 1.0 - self.__distribution(1)  # self.__distribution(0.999999) ** 2
+        def get_parent_index():
+            distribution_value = 1.0 - self.__distribution(1)
 
             j = 0
             for fitness in species_normalized_fitness_array[1:]:
@@ -394,14 +459,13 @@ Species ({len(self.__species)}):
                     break
                 j += 1
             return j
-            # return math.floor(distribution_value * len(species_individuals))
 
         for i in range(elite_count, species_size):
             parent_a = species_individuals[i]
 
-            other_parent_index = get_partner_index()
+            other_parent_index = get_parent_index()
             while other_parent_index >= len(species_individuals) or other_parent_index == i:
-                other_parent_index = get_partner_index()
+                other_parent_index = get_parent_index()
 
             parent_b = species_individuals[other_parent_index]
             child = self.__crossover(parent_a, parent_b)
