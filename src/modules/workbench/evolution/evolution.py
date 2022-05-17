@@ -1,3 +1,4 @@
+import json
 import math
 import random
 from typing import TypeVar, Generic, Iterable
@@ -46,10 +47,23 @@ class EvolutionConfig:
         self.species_creation_chance = species_creation_chance
         self.species_extinction_chance = species_extinction_chance
 
+    def to_dict(self):
+        return {
+            "elitism": self.elitism,
+            "crossover_segmentation": self.crossover_segmentation,
+            "crossover_chance": self.crossover_chance,
+            "mutation_chance": self.mutation_chance,
+            "mutation_scale": self.mutation_scale,
+            "species_maturation_generations": self.species_maturation_generations,
+            "maximum_species": self.maximum_species,
+            "species_creation_chance": self.species_creation_chance,
+            "species_extinction_chance": self.species_extinction_chance
+        }
+
 
 class Evolution(Generic[GenomeType]):
     _FITNESS_HISTORY_SIZE = 4
-    _ANCESTOR_FITNESS_SCALE = 0.25  # TODO: move it to EvolutionConfig
+    _ANCESTOR_FITNESS_SCALE = 0.125  # TODO: move it to EvolutionConfig
 
     class _Individual(Generic[GenomeType]):
         def __init__(self, species_id: int, genome: GenomeType):
@@ -68,12 +82,6 @@ class Evolution(Generic[GenomeType]):
             self.__fitness = value
             self.__update_overall_fitness()
 
-        def __update_overall_fitness(self):
-            self.__computed_overall_fitness = self.__fitness + \
-                                              linearly_weighted_average(
-                                                  self.ancestors_fitness, reverse=True
-                                              ) * Evolution._ANCESTOR_FITNESS_SCALE
-
         @property
         def overall_fitness(self) -> float:
             """
@@ -82,6 +90,25 @@ class Evolution(Generic[GenomeType]):
                 Fitness value calculated according to ancestors fitness values and current fitness
             """
             return self.__computed_overall_fitness
+
+        def to_dict(self):
+            if type(self.genome) == NeuralNetwork:
+                genome_dict = self.genome.to_dict()
+            else:
+                genome_dict = None
+
+            return {
+                "species_id": self.species_id,
+                "genome": genome_dict,
+                "fitness": self.__fitness,
+                "ancestors_fitness": self.ancestors_fitness
+            }
+
+        def __update_overall_fitness(self):
+            self.__computed_overall_fitness = self.__fitness + \
+                                              linearly_weighted_average(
+                                                  self.ancestors_fitness, reverse=True
+                                              ) * Evolution._ANCESTOR_FITNESS_SCALE
 
         def crossover_fitness(self, parent_a: 'Evolution._Individual', parent_b: 'Evolution._Individual',
                               crossover_chance: float):
@@ -115,11 +142,12 @@ class Evolution(Generic[GenomeType]):
         def id(self):
             return self.__id
 
-    """ 
-        TODO: species creation and removal chances; 
-        creating species by splitting existing species in two; 
-        removing species by either merging two species (tricky) or by killing all individuals in a species
-    """
+        def to_dict(self):
+            return {
+                'id': self.__id,
+                'population_size': self.population_size,
+                'generation': self.generation
+            }
 
     def __init__(self, genomes: list[GenomeType], evolution_config: EvolutionConfig):
         if len(genomes) < 2:
@@ -192,6 +220,9 @@ class Evolution(Generic[GenomeType]):
         return linearly_weighted_average(overall_fitness_values)
 
     def __extinct_least_fitted_species(self):
+        if len(self.__species) < 2:
+            return
+
         mature_species = list(
             filter(lambda s: s.generation >= self.__config.species_maturation_generations, self.__species.values()))
 
@@ -286,6 +317,68 @@ Average score: {self.__average_generation_score}
 Species ({len(self.__species)}):
 {f'{newline}'.join(list(map(lambda species_id: f'{tab}id: {species_id}; generation: {self.__species[species_id].generation}; population: {self.__species[species_id].population_size}', sorted(species_groups.keys()))))}
         ''')
+
+    def save_to_file(self, file_path: str):
+        data = {
+            'genomes_type': self.__genomes_type.__name__,
+            'config': self.__config.to_dict(),
+            'generation': self.__generation,
+            'best_generation_score': self.__best_generation_score,
+            'average_generation_score': self.__average_generation_score,
+            'species_counter': self.__species_counter,
+            'species': [species.to_dict() for species in self.__species.values()],
+            'individuals': [individual.to_dict() for individual in self.__individuals],
+        }
+
+        f = open(file_path, "w")
+        f.write(json.dumps(data, indent=2))
+        f.close()
+
+    def load_from_file(self, file_path: str):
+        print(f"Loading evolution state from {file_path}")
+        f = open(file_path, "r")
+        data = json.load(f)
+        f.close()
+
+        self.__config = EvolutionConfig(
+            elitism=data['config']['elitism'],
+            crossover_segmentation=data['config']['crossover_segmentation'],
+            crossover_chance=data['config']['crossover_chance'],
+            mutation_chance=data['config']['mutation_chance'],
+            mutation_scale=data['config']['mutation_scale'],
+            species_maturation_generations=data['config']['species_maturation_generations'],
+            maximum_species=data['config']['maximum_species'],
+            species_creation_chance=data['config']['species_creation_chance'],
+            species_extinction_chance=data['config']['species_extinction_chance']
+        )
+        self.__generation = data['generation']
+        self.__best_generation_score = data['best_generation_score']
+        self.__average_generation_score = data['average_generation_score']
+        self.__species_counter = data['species_counter']
+        self.__species = {}
+        for species_data in data['species']:
+            species = Evolution._Species(
+                species_id=species_data['id'],
+                population_size=species_data['population_size']
+            )
+            species.generation = species_data['generation']
+            self.__species[species.id] = species
+
+        self.__individuals = []
+        if data['genomes_type'] == 'NeuralNetwork':
+            self.__genomes_type = NeuralNetwork
+            for individual_data in data['individuals']:
+                genome = NeuralNetwork.from_dict(individual_data['genome'])
+
+                individual = Evolution._Individual(
+                    species_id=individual_data['species_id'],
+                    genome=genome,
+                )
+                # Fitness must be set after ancestors_fitness to trigger overall_fitness update
+                individual.ancestors_fitness = individual_data['ancestors_fitness']
+                individual.fitness = individual_data['fitness']
+
+                self.__individuals.append(individual)
 
     @staticmethod
     def __distribution(max_value: float):

@@ -1,3 +1,4 @@
+import os
 import random
 import time
 from math import cos, sin, pi, sqrt, inf, ceil
@@ -5,6 +6,7 @@ from math import cos, sin, pi, sqrt, inf, ceil
 from pymunk import Arbiter, Space
 
 from src.common.math import mix
+from src.common.utils import data_dir
 from src.gui.core.gui import GUI
 from src.gui.core.rect import Rect
 from src.gui.core.widget import Widget
@@ -19,6 +21,8 @@ from src.modules.workbench.view import WorkbenchView
 
 
 class RoomSimulation(SimulationBase):
+    __DATA_FILE = os.path.join(data_dir, 'room_evolution.json')
+
     _SENSOR_RANGE = 2
     _SCALE = 0.1
     __POPULATION_SIZE = 200
@@ -27,7 +31,7 @@ class RoomSimulation(SimulationBase):
     __STEERING_THRESHOLD = 1 / 3
     __ROUND_DURATION = 25
     _STUCK_DURATION = 5
-    _STUCK_DISTANCE_THRESHOLD = 1
+    _STUCK_DISTANCE_THRESHOLD = 0.5
     _SAFE_DISTANCE_FROM_WALL = 0.10
     _RENDER_SENSORS = False
     __POINTS_DISTANCE = 0.5
@@ -44,6 +48,7 @@ class RoomSimulation(SimulationBase):
             self.__last_position_check_position = (0., 0.)
 
             self.__moved_distance = 0.0
+            self.__distance_record_time = 0.0
             self.__last_position = (0., 0.)
 
             self.steering = steering
@@ -108,9 +113,14 @@ class RoomSimulation(SimulationBase):
         def moved_distance(self):
             return self.__moved_distance
 
+        @property
+        def distance_record_time(self):
+            return self.__distance_record_time
+
         def register_path_distance(self, distance: float):
-            # self.__moved_distance = max(distance, self.__moved_distance)
-            self.__moved_distance = distance
+            if distance > self.__moved_distance:
+                self.__distance_record_time = self.__delta_timer
+                self.__moved_distance = distance
 
         def respawn(self):
             self.__arrived = False
@@ -124,6 +134,7 @@ class RoomSimulation(SimulationBase):
             self.__proximity_sensors_values = [0.] * len(self.__proximity_sensors_values)
 
             self.__moved_distance = 0.0
+            self.__distance_record_time = 0.0
             self.__last_position = (0., 0.)
 
             self.__box.body.set_position((0., 0.))
@@ -153,7 +164,7 @@ class RoomSimulation(SimulationBase):
 
             self.__last_position = (self.pos[0], self.pos[1])
 
-            touching_wall = False
+            # touching_wall = False
             for i, sensor in enumerate(self.__proximity_sensors):
                 c = cos(self.__box.body.angle + pi / 2.0 * float(i))
                 s = sin(self.__box.body.angle + pi / 2.0 * float(i))
@@ -175,14 +186,14 @@ class RoomSimulation(SimulationBase):
                 if contact_point is not None:
                     distance = sqrt((contact_point[0] - sensor.pos[0]) ** 2 + (contact_point[1] - sensor.pos[1]) ** 2)
 
-                    # if self.__can_stuck and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + \
-                    #         (self.__box.size[0] / 2.0):
-                    #     self.__stuck = True
-                    #     self.__stuck_time = self.__delta_timer
-                    #     self.__box.set_color((197, 190, 176))
-                    if not touching_wall and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + (
-                            self.__box.size[0] / 2.0):
-                        touching_wall = True
+                    if self.__can_stuck and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + \
+                            (self.__box.size[0] / 2.0):
+                        self.__stuck = True
+                        self.__stuck_time = self.__delta_timer
+                        self.__box.set_color((197, 190, 176))
+                    # if not touching_wall and distance < RoomSimulation._SAFE_DISTANCE_FROM_WALL * RoomSimulation._SCALE + (
+                    #         self.__box.size[0] / 2.0):
+                    #     touching_wall = True
 
                     normalized_distance = distance / (RoomSimulation._SENSOR_RANGE * RoomSimulation._SCALE)
                     self.__proximity_sensors_values[i] = 1.0 - normalized_distance
@@ -200,8 +211,10 @@ class RoomSimulation(SimulationBase):
                     sensor.set_color(self.__sensor_color)
 
             if self.steering is not None:
-                speed = self.__movement_speed if not touching_wall else self.__movement_speed * 0.2
-                rotation_speed = self.__rotation_speed if not touching_wall else self.__rotation_speed * 0.2
+                # speed = self.__movement_speed if not touching_wall else self.__movement_speed * 0.2
+                speed = self.__movement_speed
+                # rotation_speed = self.__rotation_speed if not touching_wall else self.__rotation_speed * 0.2
+                rotation_speed = self.__rotation_speed
 
                 if self.steering.FORWARD:
                     self.__box.body.set_velocity(
@@ -260,14 +273,16 @@ class RoomSimulation(SimulationBase):
                 map(lambda _: NeuralNetwork(self.__LAYERS, randomize_weights=True), range(self.__POPULATION_SIZE))),
             evolution_config=EvolutionConfig(
                 elitism=4 / float(self.__POPULATION_SIZE),
-                mutation_chance=0.1,
-                mutation_scale=1,
+                mutation_chance=0.05,
+                mutation_scale=0.3,
                 species_maturation_generations=20,
                 maximum_species=6,
                 species_creation_chance=0.1,
                 species_extinction_chance=0.1
             )
         )
+        if os.path.isfile(self.__DATA_FILE):
+            self.__evolution.load_from_file(self.__DATA_FILE)
 
         self.__network_visualization_widgets: list[Widget] = []
         self.__last_visualization_timestamp = 0.
@@ -341,24 +356,31 @@ class RoomSimulation(SimulationBase):
 
             # Note that robot is rewarded for more moved distance if it has not reached the destination.
             # This is to favor robots that are not stucking in place
-            moved_distance_score = 2 + (
-                    1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
-                else robot_.moved_distance
+            # moved_distance_score = 2 + (
+            #         1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
+            #     else robot_.moved_distance
 
-            stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
-                if robot_.stuck else 0
+            # stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
+            #     if robot_.stuck else 0
 
             # sensor_values = robot_.get_sensors_values()
             # wall_distance_score = -max(sensor_values) * 0.1
 
             # print(moved_distance_score, wall_distance_score, stuck_time_score)
-            return moved_distance_score + stuck_time_score
+            # return moved_distance_score + stuck_time_score + wall_distance_score
+
+            distance_score = robot_.moved_distance
+            velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (robot_.distance_record_time + 1.0)
+            return distance_score * 10 + velocity_score
 
         # Calculate score for each individual
         scores: list[float] = list(map(rate_robot, self.__robots))
 
         self.__evolution.evolve(scores)
         self.__evolution.print_stats()
+        if not os.path.exists(os.path.dirname(RoomSimulation.__DATA_FILE)):
+            os.makedirs(os.path.dirname(RoomSimulation.__DATA_FILE))
+        self.__evolution.save_to_file(RoomSimulation.__DATA_FILE)
 
         for robot in self.__robots:
             robot.respawn()

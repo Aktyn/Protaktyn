@@ -1,7 +1,11 @@
+import os
 import re
 import sys
 from src.speaker import speak
 from threading import Thread
+
+data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), 'data')
+print("Data dir: " + data_dir)
 
 
 def cache(fun):
