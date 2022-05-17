@@ -73,6 +73,7 @@ class RoomSimulation(SimulationBase):
                     range(sensors_count))
             )
             self.__proximity_sensors_values = list(map(lambda _: 0., range(sensors_count)))
+            self.__sensor_angles = [0, 0.25, -0.25]
 
         def __delta_now(self):
             return self.__delta_timer
@@ -166,8 +167,8 @@ class RoomSimulation(SimulationBase):
 
             # touching_wall = False
             for i, sensor in enumerate(self.__proximity_sensors):
-                c = cos(self.__box.body.angle + pi / 2.0 * float(i))
-                s = sin(self.__box.body.angle + pi / 2.0 * float(i))
+                c = cos(self.__box.body.angle + pi * 0.5 + pi * self.__sensor_angles[i])
+                s = sin(self.__box.body.angle + pi * 0.5 + pi * self.__sensor_angles[i])
 
                 # offset_len = (self.__box.size[0 if i % 2 == 0 else 1] / 2.0)
                 offset_len = 0 if i % 2 == 0 else (self.__box.size[0] / 2.0)
@@ -265,14 +266,14 @@ class RoomSimulation(SimulationBase):
 
         self.__robots = list(map(lambda index: self._Robot(pos=(
             random.uniform(-0.4 * self._SCALE, 0.4 * self._SCALE),
-            random.uniform(-0.44 * self._SCALE, 0.4 * self._SCALE)
+            random.uniform(-0.4 * self._SCALE, 0.4 * self._SCALE)
         ), render=index < self.__RENDER_POPULATION_SIZE), range(self.__POPULATION_SIZE)))
 
         self.__evolution = Evolution[NeuralNetwork](
             genomes=list(
                 map(lambda _: NeuralNetwork(self.__LAYERS, randomize_weights=True), range(self.__POPULATION_SIZE))),
             evolution_config=EvolutionConfig(
-                elitism=4 / float(self.__POPULATION_SIZE),
+                elitism=8 / float(self.__POPULATION_SIZE),
                 mutation_chance=0.05,
                 mutation_scale=0.3,
                 species_maturation_generations=20,
@@ -370,7 +371,8 @@ class RoomSimulation(SimulationBase):
             # return moved_distance_score + stuck_time_score + wall_distance_score
 
             distance_score = robot_.moved_distance
-            velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (robot_.distance_record_time + 1.0)
+            velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (
+                        robot_.distance_record_time + 1.0)
             return distance_score * 10 + velocity_score
 
         # Calculate score for each individual
