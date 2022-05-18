@@ -14,6 +14,8 @@ class Dialog(ViewBase):
         width, height = gui.get_size()
         gui.add_widgets((
             Label(text='Are you sure?', pos=(width // 2, height // 2), font_size=2.5),
-            Button(text='Confirm', pos=(width // 2 + 160, height // 2 + 120), padding=16, on_click=self.__on_confirm),
-            Button(text='Reject', pos=(width // 2 - 160, height // 2 + 120), padding=16, on_click=self.__on_reject)
+            Button(text='Confirm', pos=(width // 2 + 160, height // 2 + 120), padding=16,
+                   on_click=lambda *_: self.__on_confirm()),
+            Button(text='Reject', pos=(width // 2 - 160, height // 2 + 120), padding=16,
+                   on_click=lambda *_: self.__on_reject())
         ))

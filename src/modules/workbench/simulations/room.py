@@ -14,13 +14,13 @@ from src.modules.workbench.common.steering import Steering, KeyboardSteering
 from src.modules.workbench.evolution.evolution import Evolution, EvolutionConfig
 from src.modules.workbench.neural_network.network import NeuralNetwork
 from src.modules.workbench.neural_network.visualize import visualize_network
-from src.modules.workbench.simulations.simulation_base import SimulationBase
+from src.modules.workbench.simulations.physics_simulation_base import PhysicsSimulationBase
 
 # NOTE: All length/size values in this file should be in meters except of RoomSimulation.SCALE which allows for a reasonable size preview
 from src.modules.workbench.view import WorkbenchView
 
 
-class RoomSimulation(SimulationBase):
+class RoomSimulation(PhysicsSimulationBase):
     __DATA_FILE = os.path.join(data_dir, 'room_evolution.json')
     __BEST_INDIVIDUAL_DATA_FILE = os.path.join(data_dir, 'room_best_individual.json')
 
@@ -55,8 +55,8 @@ class RoomSimulation(SimulationBase):
             self.steering = steering
             self.__movement_speed = 0.1
             self.__rotation_speed = pi * 0.75
-            self.__box = SimulationBase._Box(pos=pos, size=(0.15 * RoomSimulation._SCALE, 0.3 * RoomSimulation._SCALE),
-                                             color=(255, 196, 128), collision_type=0x0002, render=render)
+            self.__box = PhysicsSimulationBase._Box(pos=pos, size=(0.15 * RoomSimulation._SCALE, 0.3 * RoomSimulation._SCALE),
+                                                    color=(255, 196, 128), collision_type=0x0002, render=render)
             # Prevent from colliding with other robots
             self.__box.body.set_collision_filtering(categories=0x0002, mask=0xFFFFFFFF ^ 0x0002)
             for shape in self.__box.body.shapes:
@@ -68,9 +68,9 @@ class RoomSimulation(SimulationBase):
 
             sensors_count = 3
 
-            self.__proximity_sensors: list[SimulationBase._Line] = list(
-                map(lambda _: SimulationBase._Line(pos_start=(0, 0), pos_end=(0, 0), color=self.__sensor_color,
-                                                   render=render and RoomSimulation._RENDER_SENSORS),
+            self.__proximity_sensors: list[PhysicsSimulationBase._Line] = list(
+                map(lambda _: PhysicsSimulationBase._Line(pos_start=(0, 0), pos_end=(0, 0), color=self.__sensor_color,
+                                                          render=render and RoomSimulation._RENDER_SENSORS),
                     range(sensors_count))
             )
             self.__proximity_sensors_values = list(map(lambda _: 0., range(sensors_count)))
@@ -147,7 +147,7 @@ class RoomSimulation(SimulationBase):
         def get_sensors_values(self):
             return self.__proximity_sensors_values
 
-        def update(self, delta_time: float, simulation: SimulationBase):
+        def update(self, delta_time: float, simulation: PhysicsSimulationBase):
             self.__delta_timer += delta_time
 
             if self.__stuck or self.__arrived:
@@ -237,9 +237,9 @@ class RoomSimulation(SimulationBase):
         super().__init__(gui, gravity=(0, 0), damping=0.02)
         self.__round_duration_timer = 0.
 
-        self.__destination = SimulationBase._Box(pos=(1.25 * self._SCALE, 7.5 * self._SCALE),
-                                                 size=(1 * self._SCALE, 1 * self._SCALE), color=(225, 208, 77),
-                                                 dynamic=False, sensor=False, collision_type=0x0004)
+        self.__destination = PhysicsSimulationBase._Box(pos=(1.25 * self._SCALE, 7.5 * self._SCALE),
+                                                        size=(1 * self._SCALE, 1 * self._SCALE), color=(225, 208, 77),
+                                                        dynamic=False, sensor=False, collision_type=0x0004)
         self.__destination.body.set_collision_filtering(categories=0x0004, mask=0xFFFFFFFF)
 
         path = [
@@ -326,14 +326,14 @@ class RoomSimulation(SimulationBase):
             # (2.25, 7.5, 1, 1)
         ]
         for x, y, width, height in layout:
-            self._add_objects(SimulationBase._Box(pos=(x * self._SCALE, y * self._SCALE),
-                                                  size=(width * self._SCALE, height * self._SCALE), color=wall_color,
-                                                  dynamic=False))
+            self._add_objects(PhysicsSimulationBase._Box(pos=(x * self._SCALE, y * self._SCALE),
+                                                         size=(width * self._SCALE, height * self._SCALE), color=wall_color,
+                                                         dynamic=False))
 
         for xx, yy in self.__path_points:
-            self._add_objects(SimulationBase._Box(pos=(xx, yy),
-                                                  size=(0.05 * self._SCALE, 0.05 * self._SCALE),
-                                                  color=(216, 147, 206), dynamic=False, sensor=True))
+            self._add_objects(PhysicsSimulationBase._Box(pos=(xx, yy),
+                                                         size=(0.05 * self._SCALE, 0.05 * self._SCALE),
+                                                         color=(216, 147, 206), dynamic=False, sensor=True))
 
         self._add_objects(self.__destination)
 

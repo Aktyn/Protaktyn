@@ -1,5 +1,5 @@
 from src.common.utils import show_gui
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 from src.gui.core.button import Button
 from src.gui.core.widget import Widget
 from src.gui.views.view_base import ViewBase
@@ -200,7 +200,7 @@ if show_gui():
             self.__current_view = None
             self.remove_all_widgets()
 
-        def add_widgets(self, widgets: tuple[Widget, ...], z_index: int = 0):
+        def add_widgets(self, widgets: Union[tuple[Widget, ...], list[Widget]], z_index: int = 0):
             while len(self.__widgets) <= z_index:
                 self.__widgets.append([])
             self.__widgets[z_index].extend(widgets)
@@ -262,7 +262,7 @@ else:
         def clear_view(self):
             pass
 
-        def add_widgets(self, widgets: tuple[Widget, ...], z_index: int = 0):
+        def add_widgets(self, widgets: Union[tuple[Widget, ...], list[Widget]], z_index: int = 0):
             pass
 
         def remove_widgets(self, *widgets: Widget):

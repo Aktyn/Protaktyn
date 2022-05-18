@@ -11,7 +11,7 @@ class Button(Label):
     __HOVER_COLOR = (172, 182, 77)
 
     def __init__(self, text: str, pos: tuple[int, int], padding=16, font_size: float = 2, font_thickness=2,
-                 font_color=(255, 255, 255), background_color=__BG_COLOR, on_click: Callable = None,
+                 font_color=(255, 255, 255), background_color=__BG_COLOR, on_click: Callable[['Button'], None] = None,
                  on_mouse_up: Callable = None,
                  on_mouse_down: Callable = None):
         super().__init__(text, pos, font_size, font_thickness, font_color, GUIConsts.TextAlign.CENTER)
@@ -28,7 +28,7 @@ class Button(Label):
 
     def click(self):
         if self.__on_click:
-            self.__on_click()
+            self.__on_click(self)
 
     def on_mouse_up(self):
         if self.__on_mouse_up:

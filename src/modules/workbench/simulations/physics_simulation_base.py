@@ -12,7 +12,7 @@ from src.gui.core.widget import Widget
 from src.modules.workbench.view import WorkbenchView
 
 
-class SimulationBase:
+class PhysicsSimulationBase:
     class _Object:
         def __init__(self, pos=(0.0, 0.0), color=(255, 255, 255)):
             self._pos = pos
@@ -93,7 +93,7 @@ class SimulationBase:
             super().__init__(pos, color)
             self.size = size
 
-            self.body = SimulationBase._BodyEx(1, 0.5, pymunk.Body.DYNAMIC if dynamic else pymunk.Body.STATIC)
+            self.body = PhysicsSimulationBase._BodyEx(1, 0.5, pymunk.Body.DYNAMIC if dynamic else pymunk.Body.STATIC)
             self.body.position = Vec2d(*self._pos)
 
             self.shape = pymunk.Poly.create_box(self.body, self.size)
@@ -127,7 +127,7 @@ class SimulationBase:
         self._simulate = False
 
         self.__camera_pos = (0.0, 0.0)
-        self.__objects: list[SimulationBase._Object] = []
+        self.__objects: list[PhysicsSimulationBase._Object] = []
         self.__empty_filter = pymunk.ShapeFilter()
 
         self.__space = pymunk.Space()

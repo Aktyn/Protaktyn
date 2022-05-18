@@ -15,7 +15,9 @@ class WorkbenchView(ViewBase):
 
         self.__simulation_buttons = [
             Button(text='Room simulation', pos=(0, 0), font_size=1,
-                   on_click=lambda: self.__on_start_simulation('room'))
+                   on_click=lambda *_: self.__on_start_simulation('room')),
+            Button(text='Gomoku simulation', pos=(0, 0), font_size=1,
+                   on_click=lambda *_: self.__on_start_simulation('gomoku'))
         ]
         self.__simulation_controls: list[Widget] = []
 
@@ -25,7 +27,7 @@ class WorkbenchView(ViewBase):
         width, height = (WorkbenchView.VIEW_SIZE, WorkbenchView.VIEW_SIZE)
 
         for i, btn in enumerate(self.__simulation_buttons):
-            btn.set_pos((width // 2, 40 * (i + 1)))
+            btn.set_pos((width // 2, 40 * (i * 2 + 1)))
         gui.add_widgets(tuple(self.__simulation_buttons))
 
     def toggle_simulation_buttons(self, enabled: bool):
@@ -39,7 +41,7 @@ class WorkbenchView(ViewBase):
 
         self.remove_simulation_controls()  # just in case
 
-        close_btn = Button(text='Close', pos=(30, 20), font_size=1, on_click=on_close)
+        close_btn = Button(text='Close', pos=(30, 20), font_size=1, on_click=lambda *_: on_close())
         close_btn.set_size((60, 40))
 
         simulation_running_button_text = 'Stop simulation'
@@ -52,7 +54,7 @@ class WorkbenchView(ViewBase):
 
         toggle_simulation_button = Button(text=simulation_not_running_button_text, pos=(140, 20),
                                           font_size=1,
-                                          on_click=lambda: toggle_simulation(toggle_simulation_button.get_text()))
+                                          on_click=lambda *_: toggle_simulation(toggle_simulation_button.get_text()))
         toggle_simulation_button.set_size((140, 40))
 
         for btn in [close_btn, toggle_simulation_button]:

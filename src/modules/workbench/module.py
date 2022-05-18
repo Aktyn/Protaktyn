@@ -1,10 +1,9 @@
-from typing import Optional
+from typing import Optional, Union
 
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
+from src.modules.workbench.simulations.gomoku import GomokuSimulation
 from src.modules.workbench.simulations.room import RoomSimulation
-from src.modules.workbench.simulations.simulation_base import SimulationBase
-
 from src.modules.workbench.view import WorkbenchView
 
 
@@ -16,7 +15,7 @@ class WorkbenchModule(ModuleBase):
         self.__view = WorkbenchView(on_start_simulation=self.__start_simulation)
         self._gui.set_view(self.__view)
 
-        self.__simulation: Optional[SimulationBase] = None
+        self.__simulation: Optional[Union[RoomSimulation, GomokuSimulation]] = None
 
     def close(self):
         self.__stop_simulation()
@@ -36,5 +35,10 @@ class WorkbenchModule(ModuleBase):
 
         if simulation_name == 'room':
             self.__simulation = RoomSimulation(self._gui)
-            self.__view.setup_simulation_controls(on_close=self.__stop_simulation,
-                                                  on_toggle_simulation=self.__simulation.toggle_simulate)
+        elif simulation_name == 'gomoku':
+            self.__simulation = GomokuSimulation(self._gui)
+        else:
+            raise ValueError(f'Unknown simulation name: {simulation_name}')
+
+        self.__view.setup_simulation_controls(on_close=self.__stop_simulation,
+                                              on_toggle_simulation=self.__simulation.toggle_simulate)

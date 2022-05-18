@@ -31,9 +31,9 @@ class ScoreboardView(ViewBase):
 
         gui.add_widgets((
             Button(text='Add point to left', pos=(width // 2 - 160, 40), padding=16,
-                   on_click=self.__on_left_player_point, font_size=1),
+                   on_click=lambda *_: self.__on_left_player_point(), font_size=1),
             Button(text='Add point to right', pos=(width // 2 + 160, 40), padding=16,
-                   on_click=self.__on_right_player_point, font_size=1),
+                   on_click=lambda *_: self.__on_right_player_point(), font_size=1),
 
             self.__left_points_label,
             Label(text='|', pos=(width // 2, height // 2), font_size=6, font_thickness=3),  # Points separator
