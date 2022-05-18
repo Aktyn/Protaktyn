@@ -22,6 +22,7 @@ from src.modules.workbench.view import WorkbenchView
 
 class RoomSimulation(SimulationBase):
     __DATA_FILE = os.path.join(data_dir, 'room_evolution.json')
+    __BEST_INDIVIDUAL_DATA_FILE = os.path.join(data_dir, 'room_best_individual.json')
 
     _SENSOR_RANGE = 2
     _SCALE = 0.1
@@ -372,12 +373,14 @@ class RoomSimulation(SimulationBase):
 
             distance_score = robot_.moved_distance
             velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (
-                        robot_.distance_record_time + 1.0)
+                    robot_.distance_record_time + 1.0)
             return distance_score * 10 + velocity_score
 
         # Calculate score for each individual
         scores: list[float] = list(map(rate_robot, self.__robots))
 
+        # Saving best individual to separate file for later use
+        self.__evolution.save_genome_to_file(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE, scores.index(max(scores)))
         self.__evolution.evolve(scores)
         self.__evolution.print_stats()
         if not os.path.exists(os.path.dirname(RoomSimulation.__DATA_FILE)):

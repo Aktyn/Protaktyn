@@ -201,14 +201,16 @@ class NeuralNetwork:
         # Skip input and output layers
         for l_i in range(len(self.__layers) - 2, 0, -1):
             for n_i in range(len(self.__layers[l_i]) - 1, -1, -1):
-                is_loose = True
+                is_loose_from = True
+                is_loose_to = True
 
                 for connection in self.__connections:
-                    if connection[0] == (l_i, n_i) or connection[1] == (l_i, n_i):
-                        is_loose = False
-                        break
+                    if connection[0] == (l_i, n_i):
+                        is_loose_from = False
+                    if connection[1] == (l_i, n_i):
+                        is_loose_to = False
 
-                if is_loose:
+                if is_loose_from or is_loose_to:
                     self.remove_neuron(l_i, n_i)
 
     def __remove_empty_layers(self):

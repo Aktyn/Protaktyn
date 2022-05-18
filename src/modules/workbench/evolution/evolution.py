@@ -226,7 +226,8 @@ class Evolution(Generic[GenomeType]):
         mature_species = list(
             filter(lambda s: s.generation >= self.__config.species_maturation_generations, self.__species.values()))
 
-        if len(mature_species) == 0:
+        # Do not remove species if there are no enough mature species to compare. This is to prevent the best species extinction.
+        if len(mature_species) < 2:
             return
 
         least_fitted_mature_species = min(mature_species, key=lambda s: self.__estimate_species_fitness(s.id))
@@ -334,6 +335,11 @@ Species ({len(self.__species)}):
         f.write(json.dumps(data, indent=2))
         f.close()
 
+    def save_genome_to_file(self, file_path: str, individual_id: int):
+        f = open(file_path, "w")
+        f.write(json.dumps(self.__individuals[individual_id].to_dict()['genome'], indent=2))
+        f.close()
+
     def load_from_file(self, file_path: str):
         print(f"Loading evolution state from {file_path}")
         f = open(file_path, "r")
@@ -401,6 +407,8 @@ Species ({len(self.__species)}):
             structure_mutation_add_connection_chance = 0.3
             structure_mutation_remove_connection_chance = 0.3
 
+            changes = 0
+
             def get_random_connection():
                 to_layer_index = random.choice(range(1, len(blueprint.layers)))
                 to_neuron_index = random.choice(range(len(blueprint.layers[to_layer_index])))
@@ -438,19 +446,23 @@ Species ({len(self.__species)}):
                 for network__ in networks:
                     network__.add_layer_at(layer_to_add_index)
                 add_neuron(layer_to_add_index)
+                changes += 1
 
             if random.random() < structure_mutation_remove_layer_chance and \
                     len(blueprint.layers) - 2 > minimum_hidden_layers:
                 layer_to_remove_index = random.choice(range(1, len(blueprint.layers) - 1))
                 for network__ in networks:
                     network__.remove_layer(layer_to_remove_index)
+                changes += 1
 
             if random.random() < structure_mutation_add_neuron_chance:
                 # Add neuron in random layer except input and output layers
                 add_neuron(random.choice(range(1, len(blueprint.layers) - 1)))
+                changes += 1
 
             if random.random() < structure_mutation_remove_neuron_chance:
                 remove_random_neuron(random.choice(range(1, len(blueprint.layers) - 1)))
+                changes += 1
 
             if random.random() < structure_mutation_add_connection_chance:
                 remaining_attempts = 8
@@ -461,11 +473,18 @@ Species ({len(self.__species)}):
                 if remaining_attempts > 0:
                     for network in networks:
                         network.add_connection(random_connection[0], random_connection[1])
+                    changes += 1
 
             if random.random() < structure_mutation_remove_connection_chance:
                 connection_index = random.choice(range(len(blueprint.connections)))
                 for network in networks:
                     network.remove_connection(connection_index)
+                changes += 1
+
+            # Make sure something mutated. There is no point making new species if neural network structure doesn't change.
+            if changes == 0:
+                self.__mutate_genome_structure(networks)
+                return
 
             # Fix network structure
             for network in networks:
