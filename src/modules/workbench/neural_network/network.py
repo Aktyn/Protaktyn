@@ -130,6 +130,18 @@ class NeuralNetwork:
     def connections(self):
         return self.__connections
 
+    def copy(self):
+        layers_structure = [len(layer) for layer in self.__layers]
+        net = NeuralNetwork(layers_structure, randomize_weights=False)
+
+        for l_i in range(len(self.__layers)):
+            for n_i in range(len(self.__layers[l_i])):
+                net.__layers[l_i][n_i].activation_function = self.__layers[l_i][n_i].activation_function
+
+        net.set_connections(self.__connections, randomize_weights=False)
+
+        return net
+
     def to_dict(self):
         return {
             'layers': [[neuron.to_dict() for neuron in layer] for layer in self.__layers],

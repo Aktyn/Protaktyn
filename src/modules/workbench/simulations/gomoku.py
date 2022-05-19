@@ -1,9 +1,13 @@
 import json
 import os
+import random
 import time
+from operator import attrgetter
 from threading import Thread
 
 from typing import Callable, Optional
+
+from src.common.math import clamp_i
 from src.common.utils import data_dir
 from src.gui.core.button import Button
 from src.gui.core.gui import GUI
@@ -24,8 +28,9 @@ class GomokuSimulation:
 
     __DATA_FILE = os.path.join(data_dir, 'gomoku_evolution.json')
     __BEST_INDIVIDUAL_DATA_FILE = os.path.join(data_dir, 'gomoku_best_individual.json')
-    __POPULATION_SIZE = 200
-    __LAYERS = [_BOARD_SIZE * _BOARD_SIZE, (_BOARD_SIZE * _BOARD_SIZE) * 2, _BOARD_SIZE * _BOARD_SIZE]
+    __POPULATION_SIZE = 100
+    __ENEMIES_COUNT = 10
+    __LAYERS = [_BOARD_SIZE * _BOARD_SIZE, (_BOARD_SIZE * _BOARD_SIZE) * 2, 2]
 
     class _FieldState:
         EMPTY = 0
@@ -182,14 +187,32 @@ class GomokuSimulation:
 
     @staticmethod
     def __get_move_from_prediction(prediction: list[float], board: list[list[int]]):
-        # indexed: list[tuple[int, float]] = list(enumerate(prediction))
-        indexed = filter(
-            lambda el: board[el[0] // GomokuSimulation._BOARD_SIZE][
-                           el[0] % GomokuSimulation._BOARD_SIZE] == GomokuSimulation._FieldState.EMPTY,
-            zip(range(len(prediction)), prediction)
-        )
-        best_move_index: int = max(indexed, key=lambda el: el[1])[0]
-        return best_move_index // GomokuSimulation._BOARD_SIZE, best_move_index % GomokuSimulation._BOARD_SIZE
+        pos = clamp_i(int(prediction[0] * GomokuSimulation._BOARD_SIZE), 0, GomokuSimulation._BOARD_SIZE - 1), \
+              clamp_i(int(prediction[1] * GomokuSimulation._BOARD_SIZE), 0, GomokuSimulation._BOARD_SIZE - 1)
+
+        if board[pos[0]][pos[1]] == GomokuSimulation._FieldState.EMPTY:
+            return pos
+
+        r = 1
+        while r < GomokuSimulation._BOARD_SIZE:
+            for yy_t_b in range(-r, r + 1, r * 2):
+                for xx in range(-r, r + 1):
+                    if pos[0] + xx < 0 or pos[0] + xx >= GomokuSimulation._BOARD_SIZE or \
+                            pos[1] + yy_t_b < 0 or pos[1] + yy_t_b >= GomokuSimulation._BOARD_SIZE:
+                        continue
+                    if board[pos[0] + xx][pos[1] + yy_t_b] == GomokuSimulation._FieldState.EMPTY:
+                        return pos[0] + xx, pos[1] + yy_t_b
+            for xx_t_b in range(-r, r + 1, r * 2):
+                for yy in range(-r + 1, r):
+                    if pos[0] + xx_t_b < 0 or pos[0] + xx_t_b >= GomokuSimulation._BOARD_SIZE or \
+                            pos[1] + yy < 0 or pos[1] + yy >= GomokuSimulation._BOARD_SIZE:
+                        continue
+                    if board[pos[0] + xx_t_b][pos[1] + yy] == GomokuSimulation._FieldState.EMPTY:
+                        return pos[0] + xx_t_b, pos[1] + yy
+
+            r += 1
+
+        raise Exception("No empty field found")
 
     def __start_simulation(self):
         print(
@@ -199,11 +222,11 @@ class GomokuSimulation:
                 map(lambda _: NeuralNetwork(GomokuSimulation.__LAYERS, randomize_weights=True),
                     range(GomokuSimulation.__POPULATION_SIZE))),
             evolution_config=EvolutionConfig(
-                elitism=8 / float(self.__POPULATION_SIZE),
+                elitism=4 / float(self.__POPULATION_SIZE),
                 mutation_chance=0.05,
                 mutation_scale=0.25,
-                species_maturation_generations=40,
-                maximum_species=6,
+                species_maturation_generations=20,
+                maximum_species=4,
                 species_creation_chance=0.1,
                 species_extinction_chance=0.1
             )
@@ -212,48 +235,59 @@ class GomokuSimulation:
         if os.path.isfile(GomokuSimulation.__DATA_FILE):
             evolution.load_from_file(GomokuSimulation.__DATA_FILE)
 
+        def get_best_individuals(scores_: list[float]) -> list[NeuralNetwork]:
+            indexed_scores: list[tuple[int, float]] = list(zip(range(len(scores_)), scores_))
+            indexed_scores.sort(key=lambda x: x[1], reverse=True)
+            return list(map(
+                lambda i_s: evolution.individuals[i_s[0]].genome.copy(),
+                indexed_scores[:GomokuSimulation.__ENEMIES_COUNT]
+            ))
+
+        best_individuals = get_best_individuals(list(map(attrgetter('fitness'), evolution.individuals)))
+
         print("Starting simulation")
         while self.__simulate:
             scores: list[float] = list(map(lambda _: 0.0, range(GomokuSimulation.__POPULATION_SIZE)))
 
             # Make each AI player compete against every other AI player in the population and record their scores
             for i in range(GomokuSimulation.__POPULATION_SIZE):
-                for j in range(i + 1, GomokuSimulation.__POPULATION_SIZE):
+                print(f"Game of {i}")
+                for best in best_individuals:
                     if not self.__simulate:
                         break
+                    for k in range(0, 2):
+                        player_network = evolution.individuals[i].genome  # type: NeuralNetwork
+                        player_color = GomokuSimulation._FieldState.WHITE if k == 0 else GomokuSimulation._FieldState.BLACK
 
-                    # print(f"Game of {i} and {j}")
-                    player_i_network = evolution.individuals[i].genome  # type: NeuralNetwork
-                    # player_i_color = GomokuSimulation._FieldState.WHITE if random() > 0.5 else GomokuSimulation._FieldState.BLACK
-                    player_i_color = GomokuSimulation._FieldState.WHITE
+                        enemy_network = best
+                        enemy_color = GomokuSimulation._FieldState.BLACK if k == 0 else GomokuSimulation._FieldState.WHITE
 
-                    player_j_network = evolution.individuals[j].genome  # type: NeuralNetwork
-                    # player_j_color = GomokuSimulation._FieldState.WHITE if player_i_color == GomokuSimulation._FieldState.BLACK else GomokuSimulation._FieldState.BLACK
-                    player_j_color = GomokuSimulation._FieldState.BLACK
+                        game = GomokuSimulation._GomokuGame()
+                        while not game.finished:
+                            player_to_move, player_color_to_move = (player_network, player_color) \
+                                if game.player_turn == player_color else (enemy_network, enemy_color)
 
-                    game = GomokuSimulation._GomokuGame()
-                    while not game.finished:
-                        player_index, player_to_move, player_color_to_move = (i, player_i_network, player_i_color) \
-                            if game.player_turn == player_i_color else (j, player_j_network, player_j_color)
+                            player_input = self.__get_player_input(player_color_to_move, game.board)
+                            if len(player_input) != GomokuSimulation.__LAYERS[0]:
+                                raise Exception("Invalid input size")
+                            prediction = player_to_move.calculate(player_input)
+                            if len(prediction) != GomokuSimulation.__LAYERS[-1]:
+                                raise ValueError(
+                                    "Network output size does not match number of neurons in last layer of network")
 
-                        player_input = self.__get_player_input(player_color_to_move, game.board)
-                        if len(player_input) != GomokuSimulation.__LAYERS[0]:
-                            raise Exception("Invalid input size")
-                        prediction = player_to_move.calculate(player_input)
-                        if len(prediction) != GomokuSimulation.__LAYERS[-1]:
-                            raise ValueError(
-                                "Network output size does not match number of neurons in last layer of network")
+                            move = self.__get_move_from_prediction(prediction, game.board)
+                            result = game.make_move(move[0], move[1])
 
-                        move = self.__get_move_from_prediction(prediction, game.board)
-                        result = game.make_move(move[0], move[1])
+                            if result is not None:
+                                if result == GomokuSimulation._FieldState.EMPTY:
+                                    scores[i] += 1  # Point for draw
+                                elif result == player_color:
+                                    scores[i] += 2  # 2 points for win
 
-                        if result is not None:
-                            if result == GomokuSimulation._FieldState.EMPTY:
-                                scores[player_index] += 1  # Point for draw
-                            elif result == player_color_to_move:
-                                scores[player_index] += 2  # 2 points for win
+                                break
 
-                            break
+            # Update best individuals
+            best_individuals = get_best_individuals(scores)
 
             # Saving best individual to separate file for later use
             evolution.save_genome_to_file(GomokuSimulation.__BEST_INDIVIDUAL_DATA_FILE, scores.index(max(scores)))
