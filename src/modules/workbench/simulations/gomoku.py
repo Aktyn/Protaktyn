@@ -1,6 +1,5 @@
 import json
 import os
-import random
 import time
 from operator import attrgetter
 from threading import Thread
@@ -19,8 +18,8 @@ from src.modules.workbench.view import WorkbenchView
 
 
 class GomokuSimulation:
-    _BOARD_SIZE = 15  # 15
-    _LINE_LENGTH_TO_WIN = 5  # 5
+    _BOARD_SIZE = 5  # 15
+    _LINE_LENGTH_TO_WIN = 4  # 5
     _FIELD_MARGIN = 3
     _BOARD_TOP_OFFSET = 120
     _WHITE_COLOR = (255, 255, 255)
@@ -285,6 +284,9 @@ class GomokuSimulation:
                                     scores[i] += 2  # 2 points for win
 
                                 break
+
+            if not self.__simulate:
+                return
 
             # Update best individuals
             best_individuals = get_best_individuals(scores)

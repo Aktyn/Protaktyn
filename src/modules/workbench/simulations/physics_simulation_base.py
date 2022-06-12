@@ -59,7 +59,7 @@ class PhysicsSimulationBase:
             # noinspection PyArgumentList
             super()._set_angle(angle)
 
-    class _Line(_Object):
+    class Line(_Object):
         def __init__(self, pos_start=(0., 0.), pos_end=(0., 0.), color=(255, 255, 255), render=True):
             super().__init__(pos_start, color)
             self.pos_end = pos_end
@@ -86,7 +86,7 @@ class PhysicsSimulationBase:
                 int((0.5 - self.pos_end[1] + camera_pos[1]) * WorkbenchView.VIEW_SIZE)
             ))
 
-    class _Box(_Object):
+    class Box(_Object):
         def __init__(self, pos=(0.0, 0.0), size=(0.1, 0.1), color=(255, 255, 255), dynamic=True, sensor=False,
                      collision_type=0,
                      render=True):
@@ -190,8 +190,8 @@ class PhysicsSimulationBase:
             if obj.widget is not None:
                 self._gui.add_widgets((obj.widget,))
 
-    def _ray_cast(self, from_point: tuple[float, float], to_point: tuple[float, float], radius=0.00001,
-                  mask=0xFFFFFFFF):
+    def ray_cast(self, from_point: tuple[float, float], to_point: tuple[float, float], radius=0.00001,
+                 mask=0xFFFFFFFF):
         segment = self.__space.segment_query_first(start=from_point, end=to_point, radius=radius,
                                                    shape_filter=pymunk.ShapeFilter(
                                                        mask=mask) if mask != 0xFFFFFFFF else self.__empty_filter)
