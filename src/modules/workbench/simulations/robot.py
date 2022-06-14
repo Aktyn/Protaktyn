@@ -1,4 +1,4 @@
-from src.common.math import mix
+from src.common.math_utils import mix
 from src.modules.workbench.common.steering import Steering
 from src.modules.workbench.simulations.physics_simulation_base import PhysicsSimulationBase
 from math import cos, sin, pi, sqrt
@@ -6,10 +6,11 @@ from math import cos, sin, pi, sqrt
 
 class Robot:
     _SENSOR_RANGE = 2
-    _RENDER_SENSORS = False
+    _RENDER_SENSORS = True
     _STUCK_DURATION = 5
     _STUCK_DISTANCE_THRESHOLD = 0.5
     _SAFE_DISTANCE_FROM_WALL = 0.10
+    DEFAULT_COLOR = (255, 196, 128)
 
     def __init__(self, scale: float, steering: Steering = Steering(), pos=(0., 0.), can_stuck=True, render=True):
         self.__delta_timer = 0.0
@@ -31,7 +32,7 @@ class Robot:
         self.__rotation_speed = pi * 0.75
         self.__box = PhysicsSimulationBase.Box(pos=pos,
                                                size=(0.15 * self.__scale, 0.3 * self.__scale),
-                                               color=(255, 196, 128), collision_type=0x0002, render=render)
+                                               color=Robot.DEFAULT_COLOR, collision_type=0x0002, render=render)
         # Prevent from colliding with other robots
         self.__box.body.set_collision_filtering(categories=0x0002, mask=0xFFFFFFFF ^ 0x0002)
         for shape in self.__box.body.shapes:
@@ -62,6 +63,9 @@ class Robot:
         self.__arrived_time = self.__delta_timer
         self.__box.set_color((128, 255, 128))
 
+    def set_color(self, color: tuple[int, int, int]):
+        self.__box.set_color(color)
+
     @property
     def arrived(self):
         return self.__arrived
@@ -73,6 +77,10 @@ class Robot:
     @property
     def pos(self):
         return self.__box.pos
+
+    @property
+    def angle(self):
+        return self.__box.body.angle
 
     @property
     def shape(self):
@@ -143,8 +151,8 @@ class Robot:
 
         # touching_wall = False
         for i, sensor in enumerate(self.__proximity_sensors):
-            c = cos(self.__box.body.angle + pi * 0.5 + pi * self.__sensor_angles[i])
-            s = sin(self.__box.body.angle + pi * 0.5 + pi * self.__sensor_angles[i])
+            c = cos(self.angle + pi * 0.5 + pi * self.__sensor_angles[i])
+            s = sin(self.angle + pi * 0.5 + pi * self.__sensor_angles[i])
 
             # offset_len = (self.__box.size[0 if i % 2 == 0 else 1] / 2.0)
             offset_len = 0 if i % 2 == 0 else (self.__box.size[0] / 2.0)
@@ -159,7 +167,7 @@ class Robot:
             ))
 
             contact_point = simulation.ray_cast(from_point=sensor.pos, to_point=sensor.pos_end,
-                                                mask=0xFFFFFFFF ^ (0x0002 | 0x0004))
+                                                mask=0xFFFFFFFF ^ (0x0002 | 0x0004 | 0x0008))
             if contact_point is not None:
                 distance = sqrt((contact_point[0] - sensor.pos[0]) ** 2 + (contact_point[1] - sensor.pos[1]) ** 2)
 
@@ -196,13 +204,13 @@ class Robot:
 
             if self.steering.FORWARD:
                 self.__box.body.set_velocity(
-                    (cos(self.__box.body.angle + pi / 2.0) * speed,
-                     sin(self.__box.body.angle + pi / 2.0) * speed)
+                    (cos(self.angle + pi / 2.0) * speed,
+                     sin(self.angle + pi / 2.0) * speed)
                 )
             if self.steering.BACKWARD:
                 self.__box.body.set_velocity(
-                    (cos(self.__box.body.angle + pi / 2.0) * -speed,
-                     sin(self.__box.body.angle + pi / 2.0) * -speed)
+                    (cos(self.angle + pi / 2.0) * -speed,
+                     sin(self.angle + pi / 2.0) * -speed)
                 )
             if self.steering.LEFT:
                 self.__box.body.set_angular_velocity(rotation_speed)

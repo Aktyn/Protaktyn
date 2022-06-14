@@ -1,4 +1,4 @@
-from src.common.utils import show_gui
+from src.common.common_utils import show_gui
 from typing import Callable, Optional, Union
 from src.gui.core.button import Button
 from src.gui.core.widget import Widget

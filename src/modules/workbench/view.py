@@ -16,6 +16,8 @@ class WorkbenchView(ViewBase):
         self.__simulation_buttons = [
             Button(text='Room simulation', pos=(0, 0), font_size=1,
                    on_click=lambda *_: self.__on_start_simulation('room')),
+            Button(text='Cat stalker simulation', pos=(0, 0), font_size=1,
+                   on_click=lambda *_: self.__on_start_simulation('cat_stalker')),
             Button(text='Gomoku simulation', pos=(0, 0), font_size=1,
                    on_click=lambda *_: self.__on_start_simulation('gomoku'))
         ]

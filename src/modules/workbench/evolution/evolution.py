@@ -3,7 +3,7 @@ import math
 import random
 from typing import TypeVar, Generic, Iterable
 
-from src.common.math import normalize_array, mix, linearly_weighted_average
+from src.common.math_utils import normalize_array, mix, linearly_weighted_average
 from src.modules.workbench.neural_network.network import NeuralNetwork
 
 GenomeType = TypeVar('GenomeType')  # TypeVar('GenomeType', NeuralNetwork, OtherCrossover-ableClass)
@@ -335,9 +335,9 @@ Species ({len(self.__species)}):
         f.write(json.dumps(data, indent=2))
         f.close()
 
-    def save_genome_to_file(self, file_path: str, individual_id: int):
+    def save_genome_to_file(self, file_path: str, individual_index: int):
         f = open(file_path, "w")
-        f.write(json.dumps(self.__individuals[individual_id].to_dict()['genome'], indent=2))
+        f.write(json.dumps(self.__individuals[individual_index].to_dict()['genome'], indent=2))
         f.close()
 
     def load_from_file(self, file_path: str):

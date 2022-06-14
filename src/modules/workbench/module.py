@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
+from src.modules.workbench.simulations.cat_stalker import CatStalkerSimulation
 from src.modules.workbench.simulations.gomoku import GomokuSimulation
 from src.modules.workbench.simulations.room import RoomSimulation
 from src.modules.workbench.view import WorkbenchView
@@ -35,6 +36,8 @@ class WorkbenchModule(ModuleBase):
 
         if simulation_name == 'room':
             self.__simulation = RoomSimulation(self._gui)
+        elif simulation_name == 'cat_stalker':
+            self.__simulation = CatStalkerSimulation(self._gui)
         elif simulation_name == 'gomoku':
             self.__simulation = GomokuSimulation(self._gui)
         else:

@@ -21,7 +21,7 @@ class PhysicsSimulationBase:
             self.shape: Optional[pymunk.Shape] = None
             self.widget: Optional[Widget] = None
 
-        def set_color(self, color):
+        def set_color(self, color: tuple[int, int, int]):
             self._color = color
 
         @property

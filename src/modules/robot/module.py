@@ -12,7 +12,7 @@ from src.modules.moduleBase import ModuleBase
 from src.modules.robot.view import RobotView
 from src.modules.robot.wheelsController import WheelsController
 from src.object_detection.objectDetector import ObjectDetector, Detection
-from src.common.utils import loud_print
+from src.common.common_utils import loud_print
 
 
 class RobotModule(ModuleBase):

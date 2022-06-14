@@ -10,7 +10,7 @@ from src.modules.robot.module import RobotModule
 from src.modules.scoreboard.module import ScoreboardModule
 from src.modules.workbench.module import WorkbenchModule
 from src.speech import Speech
-from src.common.utils import loud_print
+from src.common.common_utils import loud_print
 
 
 class Core(CommandsInterface):

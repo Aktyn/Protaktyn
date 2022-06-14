@@ -1,5 +1,5 @@
 from src.modules.workbench.neural_network.network import NeuralNetwork
-from src.common.math import clamp_f, mix
+from src.common.math_utils import clamp_f, mix
 from src.gui.core.circle import Circle
 from src.gui.core.line import Line
 from src.gui.core.widget import Widget

@@ -1,3 +1,6 @@
+import math
+
+
 def clamp_f(value: float, min_: float, max_: float):
     return max(min(value, max_), min_)
 
@@ -33,3 +36,25 @@ def linearly_weighted_average(values: list[float], reverse=False):
         sum_ += value * (index + 1 if not reverse else values_count - index)
 
     return sum_ / weights_sum
+
+
+def distance_sqr(pos1: tuple[float, float], pos2: tuple[float, float]):
+    """
+    Args:
+        pos1: position of the first point
+        pos2: position of the second point
+
+    Returns: squared distance between two points.
+    """
+    return (pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2
+
+
+def distance(pos1: tuple[float, float], pos2: tuple[float, float]):
+    """
+    Args:
+        pos1: position of the first point
+        pos2: position of the second point
+
+    Returns: distance between two points.
+    """
+    return math.sqrt(distance_sqr(pos1, pos2))

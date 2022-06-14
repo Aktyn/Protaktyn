@@ -6,8 +6,8 @@ from threading import Thread
 
 from typing import Callable, Optional
 
-from src.common.math import clamp_i
-from src.common.utils import data_dir
+from src.common.math_utils import clamp_i
+from src.common.common_utils import data_dir
 from src.gui.core.button import Button
 from src.gui.core.gui import GUI
 from src.gui.core.rect import Rect

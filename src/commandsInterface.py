@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from typing import Callable, Match, Optional
-from src.common.utils import show_gui
+from src.common.common_utils import show_gui
 from src.gui.core.gui import GUI
 from src.gui.views.dialog import Dialog
 from src.gui.views.view_base import ViewBase

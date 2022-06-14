@@ -1,9 +1,10 @@
+import json
 import os
 import random
 import time
 from math import sqrt, inf, ceil
 from pymunk import Arbiter, Space
-from src.common.utils import data_dir
+from src.common.common_utils import data_dir
 from src.gui.core.gui import GUI
 from src.gui.core.rect import Rect
 from src.gui.core.widget import Widget
@@ -20,6 +21,20 @@ from src.modules.workbench.view import WorkbenchView
 class RoomSimulation(PhysicsSimulationBase):
     __DATA_FILE = os.path.join(data_dir, 'room_evolution.json')
     __BEST_INDIVIDUAL_DATA_FILE = os.path.join(data_dir, 'room_best_individual.json')
+    DEFAULT_ROOM_LAYOUT = [
+        (0, -1.5, 3.5, 1),
+        (-1.25, 1, 1, 4),
+        (1.25, 1, 1, 4),
+        (0.55, 1.3, 0.4, 1.5),
+        (0, 4.5, 3.5, 1),
+        (2.25, 3.5, 1, 3),
+        (-2.75, 2.5, 2, 1),
+        (-4.25, 5.5, 1, 7),
+        (-0.5, 8.5, 6.5, 1),
+        (-1.25, 6, 1, 2),
+        (1, 6.5, 3.5, 1),
+        (2.25, 7.5, 1, 1)
+    ]
 
     _SCALE = 0.1
     __POPULATION_SIZE = 200
@@ -86,16 +101,26 @@ class RoomSimulation(PhysicsSimulationBase):
         self.__last_visualization_timestamp = 0.
 
         self.__keyboard_steering = KeyboardSteering()
-        self.__player = Robot(scale=RoomSimulation._SCALE, steering=self.__keyboard_steering, pos=(0, 0), can_stuck=False)
+        self.__player = Robot(scale=RoomSimulation._SCALE, steering=self.__keyboard_steering, pos=(0, 0),
+                              can_stuck=False)
 
         super().add_collision_handler(0x0002, 0x0004, self.__on_robot_to_destination_collision)
-
         super()._start()
 
     def close(self):
         self.__keyboard_steering.close()
         self._gui.remove_widgets(*self.__network_visualization_widgets)
         super().close()
+
+    @staticmethod
+    def load_best_ai_player():
+        if not os.path.isfile(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE):
+            return None
+        f = open(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE, "r")
+        data = json.load(f)
+        f.close()
+
+        return NeuralNetwork.from_dict(data)
 
     def __on_robot_to_destination_collision(self, arbiter: Arbiter, _space: Space, _data: any):
         shape_a, shape_b = arbiter.shapes
@@ -107,20 +132,7 @@ class RoomSimulation(PhysicsSimulationBase):
     def _on_init(self):
         wall_color = (218, 168, 159)
 
-        layout = [
-            (0, -1.5, 3.5, 1),
-            (-1.25, 1, 1, 4),
-            (1.25, 1, 1, 4),
-            (0.55, 1.3, 0.4, 1.5),
-            (0, 4.5, 3.5, 1),
-            (2.25, 3.5, 1, 3),
-            (-2.75, 2.5, 2, 1),
-            (-4.25, 5.5, 1, 7),
-            (-0.5, 8.5, 6.5, 1),
-            (-1.25, 6, 1, 2),
-            (1, 6.5, 3.5, 1),
-            # (2.25, 7.5, 1, 1)
-        ]
+        layout = RoomSimulation.DEFAULT_ROOM_LAYOUT
         for x, y, width, height in layout:
             self._add_objects(PhysicsSimulationBase.Box(pos=(x * self._SCALE, y * self._SCALE),
                                                         size=(width * self._SCALE, height * self._SCALE),
@@ -159,19 +171,16 @@ class RoomSimulation(PhysicsSimulationBase):
             #         1.0 - robot_.arrived_time / RoomSimulation.__ROUND_DURATION) * 2 if robot_.arrived \
             #     else robot_.moved_distance
 
-            # stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
-            #     if robot_.stuck else 0
+            stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
+                if robot_.stuck and not robot_.arrived else 0
 
             sensor_values = robot_.get_sensors_values()
             wall_distance_score = -max(sensor_values) * 0.1
 
-            # print(moved_distance_score, wall_distance_score, stuck_time_score)
-            # return moved_distance_score + stuck_time_score + wall_distance_score
-
             distance_score = robot_.moved_distance
             velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (
                     robot_.distance_record_time + 1.0)
-            return distance_score * 10 + velocity_score + wall_distance_score
+            return distance_score * 10 + velocity_score + wall_distance_score + stuck_time_score * 5
 
         # Calculate score for each individual
         scores: list[float] = list(map(rate_robot, self.__robots))

@@ -1,5 +1,5 @@
 from typing import Optional
-from src.common.utils import use_epaper
+from src.common.common_utils import use_epaper
 
 if use_epaper():
     import os

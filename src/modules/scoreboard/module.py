@@ -4,7 +4,7 @@ from src.config.commands import Commands
 from src.epaper.epaper import EPaper
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
-from src.common.utils import loud_print, get_argument_value
+from src.common.common_utils import loud_print, get_argument_value
 from src.modules.scoreboard.view import ScoreboardView
 
 
