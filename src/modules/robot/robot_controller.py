@@ -24,7 +24,9 @@ class RobotController:
     VIEW_ANGLE = math.pi * 0.5  # Should match the camera view angle
     MOVEMENT_SPEED = 0.5  # Robot movement speed in meters per second
     __FRONT_SENSOR_OBSTACLE_THRESHOLD = 0.9
+    __SIDE_SENSOR_OBSTACLE_THRESHOLD = 0.7
     __OBSTACLE_RETREAT_DURATION = 1.0
+    __OBSTACLE_RETREAT_ROTATION_FACTOR = 0.05
 
     def __init__(self):
         self.__network = RobotController.load_best_ai_player()
@@ -50,7 +52,7 @@ class RobotController:
         """
         Calculate the robot's current movement according to some inputs
         Args:
-            sensors: list of normalized distance sensors values
+            sensors: list of normalized distance sensors values [front, left, right]
             estimated_cat_position: dictionary with key 'x' representing the cat's normalized x coordinate relative to camera view and key 'distance' representing estimated distance (in meters) of the cat from the robot
 
         Returns:
@@ -75,12 +77,24 @@ class RobotController:
                 estimated_cat_position['distance'] / RobotController.MOVEMENT_SPEED
             )
 
-        # Move back a bit if any sensor is detecting obstacle very near
-        if max(sensors) > RobotController.__FRONT_SENSOR_OBSTACLE_THRESHOLD:
+        # Move back a bit if front sensor is detecting near obstacle
+        if sensors[0] > RobotController.__FRONT_SENSOR_OBSTACLE_THRESHOLD:
             self.__movement_procedure = RobotController.__MovementProcedure(
                 RobotController.Direction.BACKWARD,
                 RobotController.__OBSTACLE_RETREAT_DURATION
             )
+
+            # Rotate a bit if obstacle is detected by the left or right sensor
+            if sensors[1] > RobotController.__SIDE_SENSOR_OBSTACLE_THRESHOLD:  # Left sensor
+                self.__rotation_procedure = RobotController.__MovementProcedure(
+                    RobotController.Direction.RIGHT,
+                    RobotController.__FULL_CIRCLE_ROTATION_DURATION * RobotController.__OBSTACLE_RETREAT_ROTATION_FACTOR
+                )
+            if sensors[2] > RobotController.__SIDE_SENSOR_OBSTACLE_THRESHOLD:  # Right sensor
+                self.__rotation_procedure = RobotController.__MovementProcedure(
+                    RobotController.Direction.LEFT,
+                    RobotController.__FULL_CIRCLE_ROTATION_DURATION * RobotController.__OBSTACLE_RETREAT_ROTATION_FACTOR
+                )
 
         if self.__rotation_procedure is not None:
             print(f"Rotation procedure: {self.__rotation_procedure.direction} | {self.__rotation_procedure.duration}")

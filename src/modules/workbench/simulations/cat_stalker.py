@@ -13,6 +13,7 @@ from src.modules.workbench.simulations.room import RoomSimulation
 
 class CatStalkerSimulation(PhysicsSimulationBase):
     _SCALE = 0.1
+    __CAT_DETECTION_FREQUENCY = 1  # Simulates frequency of tensorflow objects detection from camera image
 
     class _Cat:
         __STEERING_CHANGE_FREQUENCY = 1
@@ -77,6 +78,8 @@ class CatStalkerSimulation(PhysicsSimulationBase):
                              steering=KeyboardSteering())
         self.__robot_controller = RobotController()
 
+        self.__cat_detection_timer = 0.0
+
         super()._start()
 
     def close(self):
@@ -118,8 +121,13 @@ class CatStalkerSimulation(PhysicsSimulationBase):
     def _on_update(self, delta_time: float):
         self.__cat.update(delta_time)
 
-        estimated_cat_position = self.__estimate_cat_position()
-        self.__robot.set_color((255, 1, 0) if estimated_cat_position else Robot.DEFAULT_COLOR)
+        estimated_cat_position: Optional[dict[str, float]] = None
+
+        self.__cat_detection_timer += delta_time
+        if self.__cat_detection_timer > CatStalkerSimulation.__CAT_DETECTION_FREQUENCY:
+            self.__cat_detection_timer -= CatStalkerSimulation.__CAT_DETECTION_FREQUENCY
+            estimated_cat_position = self.__estimate_cat_position()
+            self.__robot.set_color((255, 1, 0) if estimated_cat_position else Robot.DEFAULT_COLOR)
 
         movement = self.__robot_controller.update(self.__robot.get_sensors_values(), estimated_cat_position)
 

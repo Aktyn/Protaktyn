@@ -8,9 +8,9 @@ from math import cos, sin, pi, sqrt
 
 class Robot:
     _SENSOR_RANGE = 2
-    _RENDER_SENSORS = False
+    _RENDER_SENSORS = True
     _STUCK_DURATION = 5
-    _STUCK_DISTANCE_THRESHOLD = 0.5
+    _STUCK_DISTANCE_THRESHOLD = 1.0
     _SAFE_DISTANCE_FROM_WALL = 0.10
     DEFAULT_COLOR = (255, 196, 128)
 
