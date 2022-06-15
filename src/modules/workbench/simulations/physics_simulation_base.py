@@ -219,7 +219,7 @@ class PhysicsSimulationBase:
 
         while self._is_running:
             now = time.time()
-            delta_time = 1. / 60. if self._simulate else min(1 / 10, now - last)
+            delta_time = 1. / 30. if self._simulate else min(1 / 10, now - last)
             # if int(now) > int(last):
             # print(f"FPS: {counter}")
             # counter = 0

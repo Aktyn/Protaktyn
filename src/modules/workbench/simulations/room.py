@@ -1,4 +1,3 @@
-import json
 import os
 import random
 import time
@@ -8,6 +7,7 @@ from src.common.common_utils import data_dir
 from src.gui.core.gui import GUI
 from src.gui.core.rect import Rect
 from src.gui.core.widget import Widget
+from src.modules.robot.robot_controller import RobotController
 from src.modules.workbench.common.steering import KeyboardSteering
 from src.modules.workbench.evolution.evolution import Evolution, EvolutionConfig
 from src.modules.workbench.neural_network.network import NeuralNetwork
@@ -20,7 +20,6 @@ from src.modules.workbench.view import WorkbenchView
 # NOTE: All length/size values in this file should be in meters except of RoomSimulation.SCALE which allows for a reasonable size preview
 class RoomSimulation(PhysicsSimulationBase):
     __DATA_FILE = os.path.join(data_dir, 'room_evolution.json')
-    __BEST_INDIVIDUAL_DATA_FILE = os.path.join(data_dir, 'room_best_individual.json')
     DEFAULT_ROOM_LAYOUT = [
         (0, -1.5, 3.5, 1),
         (-1.25, 1, 1, 4),
@@ -112,16 +111,6 @@ class RoomSimulation(PhysicsSimulationBase):
         self._gui.remove_widgets(*self.__network_visualization_widgets)
         super().close()
 
-    @staticmethod
-    def load_best_ai_player():
-        if not os.path.isfile(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE):
-            return None
-        f = open(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE, "r")
-        data = json.load(f)
-        f.close()
-
-        return NeuralNetwork.from_dict(data)
-
     def __on_robot_to_destination_collision(self, arbiter: Arbiter, _space: Space, _data: any):
         shape_a, shape_b = arbiter.shapes
         robot_shape = shape_a if shape_b == self.__destination.shape else shape_b
@@ -144,7 +133,7 @@ class RoomSimulation(PhysicsSimulationBase):
                                                         size=(0.05 * self._SCALE, 0.05 * self._SCALE),
                                                         color=(216, 147, 206), dynamic=False, sensor=True))
 
-        self._add_objects(self.__destination)
+        # self._add_objects(self.__destination)
 
         for robot in self.__robots:
             self._add_objects(*robot.objects())
@@ -174,19 +163,19 @@ class RoomSimulation(PhysicsSimulationBase):
             stuck_time_score = -(RoomSimulation.__ROUND_DURATION - robot_.stuck_time) / RoomSimulation.__ROUND_DURATION \
                 if robot_.stuck and not robot_.arrived else 0
 
-            sensor_values = robot_.get_sensors_values()
-            wall_distance_score = -max(sensor_values) * 0.1
+            # sensor_values = robot_.get_sensors_values()
+            # wall_distance_score = -max(sensor_values) * 0.1
 
             distance_score = robot_.moved_distance
             velocity_score = (robot_.moved_distance * RoomSimulation.__ROUND_DURATION) / (
                     robot_.distance_record_time + 1.0)
-            return distance_score * 10 + velocity_score + wall_distance_score + stuck_time_score * 5
+            return distance_score * 5 + velocity_score + stuck_time_score * 40
 
         # Calculate score for each individual
         scores: list[float] = list(map(rate_robot, self.__robots))
 
         # Saving best individual to separate file for later use
-        self.__evolution.save_genome_to_file(RoomSimulation.__BEST_INDIVIDUAL_DATA_FILE, scores.index(max(scores)))
+        self.__evolution.save_genome_to_file(RobotController.BEST_INDIVIDUAL_DATA_FILE, scores.index(max(scores)))
         self.__evolution.evolve(scores)
         self.__evolution.print_stats()
         if not os.path.exists(os.path.dirname(RoomSimulation.__DATA_FILE)):

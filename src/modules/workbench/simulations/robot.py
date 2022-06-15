@@ -1,4 +1,6 @@
-from src.common.math_utils import mix
+import random
+
+from src.common.math_utils import mix, clamp_f
 from src.modules.workbench.common.steering import Steering
 from src.modules.workbench.simulations.physics_simulation_base import PhysicsSimulationBase
 from math import cos, sin, pi, sqrt
@@ -6,7 +8,7 @@ from math import cos, sin, pi, sqrt
 
 class Robot:
     _SENSOR_RANGE = 2
-    _RENDER_SENSORS = True
+    _RENDER_SENSORS = False
     _STUCK_DURATION = 5
     _STUCK_DISTANCE_THRESHOLD = 0.5
     _SAFE_DISTANCE_FROM_WALL = 0.10
@@ -127,7 +129,12 @@ class Robot:
         self.__box.body.set_velocity((0., 0.))
         self.__box.body.set_angular_velocity(0)
 
-    def get_sensors_values(self):
+    def get_sensors_values(self, noise_factor=0.05):
+        if noise_factor > 0:
+            return list(map(
+                lambda sensor_value: clamp_f(sensor_value + random.uniform(-noise_factor, noise_factor), 0, 1),
+                self.__proximity_sensors_values
+            ))
         return self.__proximity_sensors_values
 
     def update(self, delta_time: float, simulation: PhysicsSimulationBase):

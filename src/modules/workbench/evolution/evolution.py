@@ -400,22 +400,26 @@ Species ({len(self.__species)}):
 
             minimum_hidden_layers = 1
             maximum_hidden_layers = 8
-            structure_mutation_add_layer_chance = 0.1
+            structure_mutation_add_layer_chance = 0.2  # 0.1
             structure_mutation_remove_layer_chance = 0.05
-            structure_mutation_add_neuron_chance = 0.2
+            structure_mutation_add_neuron_chance = 0.4  # 0.3
             structure_mutation_remove_neuron_chance = 0.2
-            structure_mutation_add_connection_chance = 0.3
-            structure_mutation_remove_connection_chance = 0.3
+            structure_mutation_add_connection_chance = 0.4  # 0.3
+            structure_mutation_remove_connection_chance = 0.2  # 0.3
 
             changes = 0
 
             def get_random_connection():
-                to_layer_index = random.choice(range(1, len(blueprint.layers)))
-                to_neuron_index = random.choice(range(len(blueprint.layers[to_layer_index])))
-                from_layer_index = random.choice(range(0, to_layer_index))
-                from_neuron_index = random.choice(range(len(blueprint.layers[from_layer_index])))
+                try:
+                    to_layer_index = random.choice(range(1, len(blueprint.layers)))
+                    to_neuron_index = random.choice(range(len(blueprint.layers[to_layer_index])))
+                    from_layer_index = random.choice(range(0, to_layer_index))
+                    from_neuron_index = random.choice(range(len(blueprint.layers[from_layer_index])))
 
-                return (from_layer_index, from_neuron_index), (to_layer_index, to_neuron_index)
+                    return (from_layer_index, from_neuron_index), (to_layer_index, to_neuron_index)
+                except IndexError:
+                    print(f"Error in get_random_connection()")
+                    return get_random_connection()
 
             def add_neuron(layer_index: int):
                 new_neuron_index = len(blueprint.layers[layer_index])

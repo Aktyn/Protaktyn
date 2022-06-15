@@ -1,14 +1,16 @@
 import random
 import time
 from datetime import datetime
-from enum import Enum
+
 from threading import Thread
 from typing import Optional
 
+from src.common.math_utils import clamp_i
 from src.config.commands import Commands
 from src.depth_estimation.depth import DepthEstimator
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
+from src.modules.robot.robot_controller import RobotController
 from src.modules.robot.view import RobotView
 from src.modules.robot.wheelsController import WheelsController
 from src.object_detection.objectDetector import ObjectDetector, Detection
@@ -16,17 +18,15 @@ from src.common.common_utils import loud_print
 
 
 class RobotModule(ModuleBase):
-    class __Direction(Enum):
-        FORWARD, BACKWARD, LEFT, RIGHT = range(4)
 
     def __init__(self, gui: GUI):
         super().__init__(gui)
 
         self.__view = RobotView(
-            on_forward=lambda enable: self.__handle_direction_change(RobotModule.__Direction.FORWARD, enable),
-            on_backward=lambda enable: self.__handle_direction_change(RobotModule.__Direction.BACKWARD, enable),
-            on_turn_left=lambda enable: self.__handle_direction_change(RobotModule.__Direction.LEFT, enable),
-            on_turn_right=lambda enable: self.__handle_direction_change(RobotModule.__Direction.RIGHT, enable)
+            on_forward=lambda enable: self.__handle_direction_change(RobotController.Direction.FORWARD, enable),
+            on_backward=lambda enable: self.__handle_direction_change(RobotController.Direction.BACKWARD, enable),
+            on_turn_left=lambda enable: self.__handle_direction_change(RobotController.Direction.LEFT, enable),
+            on_turn_right=lambda enable: self.__handle_direction_change(RobotController.Direction.RIGHT, enable)
         )
         self._gui.set_view(self.__view)
 
@@ -36,8 +36,8 @@ class RobotModule(ModuleBase):
         self.__last_target_detection: Optional[dict] = None
 
         self.__wheels = WheelsController()
-        self.__current_direction: Optional[RobotModule.__Direction] = None
-        self.__next_direction: Optional[RobotModule.__Direction] = None
+        self.__current_direction: Optional[RobotController.Direction] = None
+        self.__next_direction: Optional[RobotController.Direction] = None
 
         super().register_command(Commands.ROBOT.target_cat,  # , 'person'
                                  lambda *args: self.__start_targeting_objects('cat', 'dog', 'horse', 'sheep', 'cow',
@@ -73,7 +73,7 @@ class RobotModule(ModuleBase):
             self.__movement_thread.join()
             self.__movement_thread = None
 
-    def __handle_direction_change(self, direction: __Direction, enable: bool, force=False):
+    def __handle_direction_change(self, direction: RobotController.Direction, enable: bool, force=False):
         if not enable:
             if direction == self.__current_direction:
                 self.__handle_release()
@@ -87,19 +87,19 @@ class RobotModule(ModuleBase):
 
         self.__current_direction = direction
 
-        if direction == RobotModule.__Direction.FORWARD:
+        if direction == RobotController.Direction.FORWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
             self.__view.set_steering_button_active('forward', True)
-        elif direction == RobotModule.__Direction.BACKWARD:
+        elif direction == RobotController.Direction.BACKWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
             self.__view.set_steering_button_active('backward', True)
-        elif direction == RobotModule.__Direction.RIGHT:
+        elif direction == RobotController.Direction.RIGHT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.BACKWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
             self.__view.set_steering_button_active('right', True)
-        elif direction == RobotModule.__Direction.LEFT:
+        elif direction == RobotController.Direction.LEFT:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.BACKWARD)
             self.__view.set_steering_button_active('left', True)
@@ -159,9 +159,9 @@ class RobotModule(ModuleBase):
                 elif now - last_rotation_timestamp < rotation_duration:
                     if not is_looking_for_target:
                         if rotation_direction == 1:
-                            self.__handle_direction_change(RobotModule.__Direction.LEFT, True, True)
+                            self.__handle_direction_change(RobotController.Direction.LEFT, True, True)
                         else:
-                            self.__handle_direction_change(RobotModule.__Direction.RIGHT, True, True)
+                            self.__handle_direction_change(RobotController.Direction.RIGHT, True, True)
                         is_looking_for_target = True
                 elif is_looking_for_target:
                     self.__handle_release()
@@ -169,7 +169,7 @@ class RobotModule(ModuleBase):
             # React to detected target position by turning robot towards it
             else:
                 target_position_x = self.__last_target_detection['position'][0]
-                estimated_distance = min(1, max(0, 1 - self.__last_target_detection['area']))
+                estimated_distance = clamp_i(1 - self.__last_target_detection['area'], 0, 1)
 
                 rotation_duration_towards_target = abs(target_position_x) * max_rotation_duration_towards_target
                 moving_towards_target_duration = max(min_moving_towards_target_duration,
@@ -180,15 +180,15 @@ class RobotModule(ModuleBase):
                     if not is_rotating_toward_target:
                         direction = -1 if target_position_x > 0.0 else 1
                         if direction == 1:
-                            self.__handle_direction_change(RobotModule.__Direction.LEFT, True, True)
+                            self.__handle_direction_change(RobotController.Direction.LEFT, True, True)
                         else:
-                            self.__handle_direction_change(RobotModule.__Direction.RIGHT, True, True)
+                            self.__handle_direction_change(RobotController.Direction.RIGHT, True, True)
                         is_rotating_toward_target = True
                 # Move towards target
                 elif now - last_target_detection_timestamp < moving_towards_target_duration + rotation_duration_towards_target:
                     is_rotating_toward_target = False
                     if not is_following_target:
-                        self.__handle_direction_change(RobotModule.__Direction.FORWARD, True, True)
+                        self.__handle_direction_change(RobotController.Direction.FORWARD, True, True)
                         is_following_target = True
                 elif is_following_target:
                     self.__handle_release()
@@ -208,9 +208,8 @@ class RobotModule(ModuleBase):
             ((best_detection.bounding_box.left + best_detection.bounding_box.right) / 2) / gui_width * 2.0 - 1.0,
             ((best_detection.bounding_box.top + best_detection.bounding_box.bottom) / 2) / gui_height * 2.0 - 1.0
         )
-        normalized_area = abs(
-            best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * abs(
-            best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
+        normalized_area = abs(best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * \
+                          abs(best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
 
         print("Target detected at position:", center, "with area:", normalized_area)
 
