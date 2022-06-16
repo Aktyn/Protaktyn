@@ -7,7 +7,6 @@ from typing import Optional
 
 from src.common.math_utils import clamp_i
 from src.config.commands import Commands
-from src.depth_estimation.depth import DepthEstimator
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
 from src.modules.robot.robot_controller import RobotController
@@ -15,6 +14,9 @@ from src.modules.robot.view import RobotView
 from src.modules.robot.wheelsController import WheelsController
 from src.object_detection.objectDetector import ObjectDetector, Detection
 from src.common.common_utils import loud_print
+
+
+# from src.depth_estimation.depth import DepthEstimator
 
 
 class RobotModule(ModuleBase):
@@ -31,7 +33,6 @@ class RobotModule(ModuleBase):
         self._gui.set_view(self.__view)
 
         self.__detector: Optional[ObjectDetector] = None
-        self.__depth: Optional[DepthEstimator] = None
         self.__movement_thread: Optional[Thread] = None
         self.__last_target_detection: Optional[dict] = None
 
@@ -44,19 +45,20 @@ class RobotModule(ModuleBase):
                                                                               'bear', 'zebra', 'teddy bear', 'bottle'))
 
         self.__detector = ObjectDetector(self._gui)
-        self.__depth = DepthEstimator(self._gui)
+        # self.__depth: Optional[DepthEstimator] = None
+        # self.__depth = DepthEstimator(self._gui)
 
         self.__is_targeting = False
         self.__targeting_process: Optional[Thread] = None
 
         # TEMP
-        # self.__start_targeting_object('cat')
+        self.__start_targeting_objects('cat', 'dog', 'horse', 'sheep', 'cow', 'bear', 'zebra', 'teddy bear', 'bottle')
 
     def close(self):
         self.stop_targeting()
         self.__wheels.close()
         self.__detector.close()
-        self.__depth.close()
+        # self.__depth.close()
         super().close()
 
     def stop_targeting(self):
@@ -196,6 +198,7 @@ class RobotModule(ModuleBase):
                     last_action_timestamp = now
 
     def __handle_target_detection(self, detections: list[Detection]):  # position: Tuple[float, float], area: float):
+        print(f"DETECTIONS: {len(detections)}")
         self.__view.set_detections(detections)
 
         if len(detections) <= 0:
@@ -208,8 +211,8 @@ class RobotModule(ModuleBase):
             ((best_detection.bounding_box.left + best_detection.bounding_box.right) / 2) / gui_width * 2.0 - 1.0,
             ((best_detection.bounding_box.top + best_detection.bounding_box.bottom) / 2) / gui_height * 2.0 - 1.0
         )
-        normalized_area = abs(best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * \
-                          abs(best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
+        normalized_area = abs(best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * abs(
+            best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
 
         print("Target detected at position:", center, "with area:", normalized_area)
 
@@ -238,8 +241,8 @@ class RobotModule(ModuleBase):
             detections = self.__detector.detect(image)
             self.__handle_target_detection(list(filter(lambda d: d.categories[0].label in object_names, detections)))
 
-            depth_estimation = self.__depth.estimate(image)
-            self.__view.set_depth_estimation_image(depth_estimation)
+            # depth_estimation = self.__depth.estimate(image)
+            # self.__view.set_depth_estimation_image(depth_estimation)
 
             fps = min(30.0, 1 / (time.time() - start))
             print("FPS:", fps)

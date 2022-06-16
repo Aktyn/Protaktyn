@@ -137,6 +137,7 @@ class Speech:
                 previous_sample = sample
 
     def stop(self):
-        self.__recorder.stop()
-        self.__recorder = None
+        if self.__recorder is not None:
+            self.__recorder.stop()
+            self.__recorder = None
         self.__running = False

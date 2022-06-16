@@ -1,16 +1,15 @@
+import numpy as np
+import cv2
+from cv2 import VideoCapture
 from src.common.common_utils import show_gui
 from typing import Callable, Optional, Union
 from src.gui.core.button import Button
 from src.gui.core.widget import Widget
 from src.gui.views.view_base import ViewBase
+from threading import Thread
 
 if show_gui():
     import sys
-    import numpy as np
-    import cv2
-    from cv2 import VideoCapture
-
-    from threading import Thread
     from src.gui.core.gui_consts import GUIConsts
 
 
@@ -26,7 +25,7 @@ if show_gui():
             self.__current_view: Optional[ViewBase] = None
             self.key = 255
 
-            self.__camera_frames_history: list[any] = []
+            self.__camera_frames_history: list[np.ndarray] = []
             self.__camera_frames_history_buffer_size = 60
 
             self.__background_color = (56, 50, 38)
@@ -222,24 +221,70 @@ if show_gui():
             self.__need_redraw = True
 
 else:
-    # Mock GUI TODO: camera preview functionality
+    # Mock GUI
     class GUI:
         DEFAULT_SIZE = (640, 360)
 
         def __init__(self, _on_close: Callable, _size: tuple[int, int] = DEFAULT_SIZE):
-            pass
+            self.__running = False
+
+            self.__camera_stream: Optional[VideoCapture] = None
+            self.__camera_frames_history: list[np.ndarray] = []
+            self.__camera_frames_history_buffer_size = 60
+
+            self.__window_thread = Thread(target=self.__init_window, daemon=True)
+            self.__window_thread.start()
 
         def close(self):
-            pass
+            self.__running = False
 
-        def start_camera_preview(self, resolution: tuple[int, int], camera_id=0):
-            pass
+            self.stop_camera_preview()
+
+            if self.__window_thread is not None:
+                # noinspection PyBroadException
+                try:
+                    self.__window_thread.join()
+                except BaseException:
+                    pass
+                self.__window_thread = None
+
+        def start_camera_preview(self, resolution: tuple[int, int] = DEFAULT_SIZE, camera_id=0):
+            if self.__camera_stream is not None:
+                print("Camera preview already started")
+                return
+            print("Starting camera preview. Camera id:", camera_id)
+
+            try:
+                self.__camera_stream = cv2.VideoCapture(camera_id)
+                self.__camera_stream.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
+                self.__camera_stream.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+            except BaseException as e:
+                print("Failed to start camera preview:", e)
 
         def stop_camera_preview(self):
-            pass
+            if self.__camera_stream is not None:
+                self.__camera_stream.release()
+                self.__camera_stream = None
+            self.__camera_frames_history.clear()
 
         def get_last_camera_frame(self):
-            pass
+            if len(self.__camera_frames_history) > 0:
+                cv2.imwrite("test.jpg", self.__camera_frames_history[-1])  # TODO: temporary for raspberry pi testing
+                return self.__camera_frames_history[-1]
+            return None
+
+        def __init_window(self):
+            self.__running = True
+
+            while self.__running:
+                if self.__camera_stream is not None and self.__camera_stream.isOpened():
+                    success, camera_image = self.__camera_stream.read()
+                    if success:
+                        # height, width = camera_image.shape[:2]
+                        self.__camera_frames_history.append(camera_image)
+
+                        while len(self.__camera_frames_history) > self.__camera_frames_history_buffer_size:
+                            self.__camera_frames_history.pop(0)
 
         def get_size(self):
             pass

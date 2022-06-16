@@ -49,6 +49,7 @@ class Core(CommandsInterface):
             self.__speech.start()
         except OSError as e:
             print(f"Failed to start speech recognition: {e}")
+            self.__speech.stop()
 
     def __handle_prediction(self, prediction_id: int, prediction_results: dict, final: bool = False,
                             samples_count: int = 0):

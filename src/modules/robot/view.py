@@ -55,17 +55,20 @@ class RobotView(ViewBase):
             button.set_border_width(4)
 
         gui.add_widgets((self.__button_forward,
-                        self.__button_backward,
-                        self.__button_turn_left,
-                        self.__button_turn_right))
+                         self.__button_backward,
+                         self.__button_turn_left,
+                         self.__button_turn_right))
 
     def toggle_fill_buttons(self, fill: bool):
         for button in [self.__button_forward, self.__button_backward, self.__button_turn_left,
                        self.__button_turn_right]:
             button.set_fill(fill)
-        self.__gui.redraw()
+        if self.__gui is not None:
+            self.__gui.redraw()
 
     def toggle_depth_preview(self, show: bool):
+        if self.__gui is None:
+            return
         if show:
             self.__gui.set_size((GUI.DEFAULT_SIZE[0], GUI.DEFAULT_SIZE[1] * 2))
             self.__gui.add_widgets((self.__depth_estimation_image,))
@@ -80,9 +83,13 @@ class RobotView(ViewBase):
         button = self.__button_forward if name == 'forward' else self.__button_backward if name == 'backward' else self.__button_turn_left if name == 'left' else self.__button_turn_right if name == 'right' else None
         if button is not None:
             button.set_text_color((132, 199, 129) if is_active else (255, 255, 255))
-            self.__gui.redraw()
+            if self.__gui is not None:
+                self.__gui.redraw()
 
     def set_detections(self, detections: list[Detection]):
+        if self.__gui is None:
+            return
+
         for widget in self.__detection_widgets:
             self.__gui.remove_widgets(widget)
 

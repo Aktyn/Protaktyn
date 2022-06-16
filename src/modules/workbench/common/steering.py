@@ -1,6 +1,3 @@
-from pynput import keyboard
-
-
 class Steering:
     def __init__(self):
         self.FORWARD = False
@@ -11,9 +8,10 @@ class Steering:
 
 class KeyboardSteering(Steering):
     def __init__(self):
+        import pynput
         super().__init__()
-        self.__listener = keyboard.Listener(on_press=lambda key: self.__on_press(key, True),
-                                            on_release=lambda key: self.__on_press(key, False))
+        self.__listener = pynput.keyboard.Listener(on_press=lambda key: self.__on_press(key, True),
+                                                   on_release=lambda key: self.__on_press(key, False))
         self.__listener.start()
 
     def close(self):
