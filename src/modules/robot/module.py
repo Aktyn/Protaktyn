@@ -1,22 +1,16 @@
-import random
 import time
-from datetime import datetime
 
 from threading import Thread
 from typing import Optional
-
-from src.common.math_utils import clamp_i
+from src.common.math_utils import clamp_f
 from src.config.commands import Commands
 from src.gui.core.gui import GUI
 from src.modules.moduleBase import ModuleBase
+from src.modules.robot.distance_sensor import DistanceSensor
 from src.modules.robot.robot_controller import RobotController
 from src.modules.robot.view import RobotView
-from src.modules.robot.wheelsController import WheelsController
+from src.modules.robot.wheels_controller import WheelsController
 from src.object_detection.objectDetector import ObjectDetector, Detection
-from src.common.common_utils import loud_print
-
-
-# from src.depth_estimation.depth import DepthEstimator
 
 
 class RobotModule(ModuleBase):
@@ -40,6 +34,12 @@ class RobotModule(ModuleBase):
         self.__current_direction: Optional[RobotController.Direction] = None
         self.__next_direction: Optional[RobotController.Direction] = None
 
+        self.__sensors = [
+            DistanceSensor(trig=16, echo=19),  # front (0 deg)
+            DistanceSensor(trig=17, echo=27),  # left (45deg)
+            DistanceSensor(trig=21, echo=20)  # right (-45deg)
+        ]
+
         super().register_command(Commands.ROBOT.target_cat,  # , 'person'
                                  lambda *args: self.__start_targeting_objects('cat', 'dog', 'horse', 'sheep', 'cow',
                                                                               'bear', 'zebra', 'teddy bear', 'bottle'))
@@ -50,6 +50,8 @@ class RobotModule(ModuleBase):
 
         self.__is_targeting = False
         self.__targeting_process: Optional[Thread] = None
+
+        self.__robot_controller = RobotController()
 
         # TEMP
         self.__start_targeting_objects('cat', 'dog', 'horse', 'sheep', 'cow', 'bear', 'zebra', 'teddy bear', 'bottle')
@@ -75,20 +77,7 @@ class RobotModule(ModuleBase):
             self.__movement_thread.join()
             self.__movement_thread = None
 
-    def __handle_direction_change(self, direction: RobotController.Direction, enable: bool, force=False):
-        if not enable:
-            if direction == self.__current_direction:
-                self.__handle_release()
-            else:
-                self.__next_direction = None
-            return
-
-        if self.__current_direction is not None and not force:
-            self.__next_direction = direction
-            return
-
-        self.__current_direction = direction
-
+    def __apply_wheels_direction(self, direction: RobotController.Direction):
         if direction == RobotController.Direction.FORWARD:
             self.__wheels.set_wheel_state(WheelsController.Wheel.LEFT, WheelsController.WheelState.FORWARD)
             self.__wheels.set_wheel_state(WheelsController.Wheel.RIGHT, WheelsController.WheelState.FORWARD)
@@ -108,6 +97,22 @@ class RobotModule(ModuleBase):
         else:
             raise ValueError("Invalid direction")
 
+    def __handle_direction_change(self, direction: RobotController.Direction, enable: bool, force=False):
+        if not enable:
+            if direction == self.__current_direction:
+                self.__handle_release()
+            else:
+                self.__next_direction = None
+            return
+
+        if self.__current_direction is not None and not force:
+            self.__next_direction = direction
+            return
+
+        self.__current_direction = direction
+
+        self.__apply_wheels_direction(direction)
+
     def __handle_release(self):
         self.__current_direction = None
         if self.__next_direction is not None:
@@ -121,84 +126,39 @@ class RobotModule(ModuleBase):
 
     def __smart_movement_thread(self):
         print("Smart movement thread started")
-        # if self.__detector is None:
-        #     return
-        # detector_id = self.__detector.id()
 
-        next_action_delay = 3
-        idle_time = 15.0
-        rotation_interval = 8.0
-        rotation_duration = 0
-        randomize_rotation_direction = True
-        rotation_direction = random.choice([-1 if randomize_rotation_direction else 1, 1])
-        max_rotation_duration_towards_target = 0.1
-        min_moving_towards_target_duration = 0.2
-        max_moving_towards_target_duration = 1.5
+        while self.__targeting_process is not None:
+            start = time.time()
 
-        last_action_timestamp = 0
-        last_rotation_timestamp = datetime.now().timestamp()
-        is_looking_for_target = False
-        is_rotating_toward_target = False
-        is_following_target = False
+            distances = [1.0 - clamp_f(sensor.get_distance() / DistanceSensor.RANGE_CM, 0, 1)
+                         for sensor in self.__sensors]
 
-        while self.__targeting_process is not None:  # and self.__detector.id() == detector_id:
-            now = datetime.now().timestamp()
-
-            # Wait some time after previous action
-            if now - last_action_timestamp < next_action_delay:
-                continue
-
-            last_target_detection_timestamp = 0 if self.__last_target_detection is None else \
-                self.__last_target_detection['timestamp']
-
-            # If there is no target detected for given amount of time
-            if self.__last_target_detection is None or now - last_target_detection_timestamp > idle_time:
-                if now - last_rotation_timestamp > rotation_interval:
-                    last_rotation_timestamp = now
-                    rotation_duration = random.uniform(1, 3)  # must not be larger than rotation_interval
-                    rotation_direction = random.choice([-1 if randomize_rotation_direction else 1, 1])
-                    is_looking_for_target = False
-                elif now - last_rotation_timestamp < rotation_duration:
-                    if not is_looking_for_target:
-                        if rotation_direction == 1:
-                            self.__handle_direction_change(RobotController.Direction.LEFT, True, True)
-                        else:
-                            self.__handle_direction_change(RobotController.Direction.RIGHT, True, True)
-                        is_looking_for_target = True
-                elif is_looking_for_target:
-                    self.__handle_release()
-                    is_looking_for_target = False
-            # React to detected target position by turning robot towards it
+            estimated_cat_position = {
+                'x': -self.__last_target_detection['position'][0],
+                'distance': clamp_f(1.0 - self.__last_target_detection['area'], 0, 1) * 4
+            } if self.__last_target_detection is not None else None
+            if estimated_cat_position is not None:
+                print(f"Cat position: x: {estimated_cat_position['x']}; distance: {estimated_cat_position['distance']}")
             else:
-                target_position_x = self.__last_target_detection['position'][0]
-                estimated_distance = clamp_i(1 - self.__last_target_detection['area'], 0, 1)
+                print(f"Sensors distances: {' | '.join(map(lambda dst: '{0:03d}cm'.format(round(dst)), distances))}")
+            movement = self.__robot_controller.update(distances, estimated_cat_position)
+            self.__last_target_detection = None
 
-                rotation_duration_towards_target = abs(target_position_x) * max_rotation_duration_towards_target
-                moving_towards_target_duration = max(min_moving_towards_target_duration,
-                                                     estimated_distance * max_moving_towards_target_duration)
+            # self.__handle_direction_change(RobotController.Direction.LEFT, True, True)
+            direction = RobotController.Direction.FORWARD if movement[RobotController.Direction.FORWARD] \
+                else RobotController.Direction.BACKWARD if movement[RobotController.Direction.BACKWARD] \
+                else RobotController.Direction.LEFT if movement[RobotController.Direction.LEFT] \
+                else RobotController.Direction.RIGHT if movement[RobotController.Direction.RIGHT] \
+                else None
 
-                # Rotate slightly towards target
-                if now - last_target_detection_timestamp < rotation_duration_towards_target and not is_following_target:
-                    if not is_rotating_toward_target:
-                        direction = -1 if target_position_x > 0.0 else 1
-                        if direction == 1:
-                            self.__handle_direction_change(RobotController.Direction.LEFT, True, True)
-                        else:
-                            self.__handle_direction_change(RobotController.Direction.RIGHT, True, True)
-                        is_rotating_toward_target = True
-                # Move towards target
-                elif now - last_target_detection_timestamp < moving_towards_target_duration + rotation_duration_towards_target:
-                    is_rotating_toward_target = False
-                    if not is_following_target:
-                        self.__handle_direction_change(RobotController.Direction.FORWARD, True, True)
-                        is_following_target = True
-                elif is_following_target:
-                    self.__handle_release()
-                    is_following_target = False
-                    last_action_timestamp = now
+            self.__apply_wheels_direction(direction) if direction is not None else self.__wheels.stop_wheels()
+
+            # Keep the loop at 30 FPS
+            elapsed_time = time.time() - start
+            time.sleep(max(0.0, 1.0 / 30.0 - elapsed_time))
 
     def __handle_target_detection(self, detections: list[Detection]):  # position: Tuple[float, float], area: float):
-        print(f"DETECTIONS: {len(detections)}")
+        # print(f"DETECTIONS: {len(detections)}")
         self.__view.set_detections(detections)
 
         if len(detections) <= 0:
@@ -211,28 +171,30 @@ class RobotModule(ModuleBase):
             ((best_detection.bounding_box.left + best_detection.bounding_box.right) / 2) / gui_width * 2.0 - 1.0,
             ((best_detection.bounding_box.top + best_detection.bounding_box.bottom) / 2) / gui_height * 2.0 - 1.0
         )
-        normalized_area = abs(best_detection.bounding_box.right - best_detection.bounding_box.left) / gui_width * abs(
-            best_detection.bounding_box.bottom - best_detection.bounding_box.top) / gui_height
+        normalized_area = (
+                                  abs(best_detection.bounding_box.right - best_detection.bounding_box.left) *
+                                  abs(best_detection.bounding_box.bottom - best_detection.bounding_box.top)
+                          ) / (gui_width * gui_height)
 
         print("Target detected at position:", center, "with area:", normalized_area)
 
         self.__last_target_detection = {
             'position': center,
             'area': normalized_area,
-            'timestamp': datetime.now().timestamp()
+            # 'timestamp': datetime.now().timestamp()
         }
 
     def __targeting_thread(self, *object_names: str):
         self.__is_targeting = True
 
-        loud_print(f"Starting targeting objects: {object_names}", True)
+        print(f"Starting targeting objects: {object_names}", True)
 
         self._gui.start_camera_preview()
         self.__view.toggle_fill_buttons(False)
         self.__view.toggle_depth_preview(True)
 
         while self.__is_targeting:
-            start = time.time()
+            # start = time.time()
 
             image = self._gui.get_last_camera_frame()
             if image is None:
@@ -244,8 +206,8 @@ class RobotModule(ModuleBase):
             # depth_estimation = self.__depth.estimate(image)
             # self.__view.set_depth_estimation_image(depth_estimation)
 
-            fps = min(30.0, 1 / (time.time() - start))
-            print("FPS:", fps)
+            # fps = min(30.0, 1 / (time.time() - start))
+            # print("FPS:", fps)
 
     def __start_targeting_objects(self, *object_names: str):
         if self.__targeting_process is not None:

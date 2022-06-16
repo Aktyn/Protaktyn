@@ -101,7 +101,7 @@ class CatStalkerSimulation(PhysicsSimulationBase):
     def __estimate_cat_position(self) -> Optional[dict[str, float]]:
         max_distance = 3
         max_angle = RobotController.VIEW_ANGLE / 2.0
-        cat_robot_distance = distance_sqr(self.__robot.pos, self.__cat.pos)
+        cat_robot_distance = distance_sqr(self.__robot.pos, self.__cat.pos) / CatStalkerSimulation._SCALE
         if cat_robot_distance < (max_distance * CatStalkerSimulation._SCALE) ** 2:
             relative_angle = math.atan2(self.__cat.pos[1] - self.__robot.pos[1],
                                         self.__cat.pos[0] - self.__robot.pos[0]) - self.__robot.angle - math.pi / 2.0

@@ -29,7 +29,7 @@ class RobotController:
     __OBSTACLE_RETREAT_ROTATION_FACTOR = 0.05
 
     def __init__(self):
-        self.__network = RobotController.load_best_ai_player()
+        self.__network = self.load_best_ai_player()
         self.__last_update_time: Optional[float] = None
 
         # For turning

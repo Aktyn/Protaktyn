@@ -1,7 +1,10 @@
 # Protaktyn
+
 Repository for Raspberry Pi based multipurpose robot project
 
-In order to test some parts of code you might need to create **RPi** directory with empty **\_\_init\_\_.py** file and **GPIO.py** with given content:
+In order to test some parts of code you might need to create **RPi** directory with empty **\_\_init\_\_.py** file
+and **GPIO.py** with given content:
+
 ```python
 LOW = 1
 HIGH = 2
@@ -18,11 +21,20 @@ def setup(_: int, __: int):
     pass
 
 
+# noinspection PyShadowingBuiltins
+def input(_: int) -> int:
+    pass
+
+
 def output(_: int, __: int):
     pass
 
 
 def cleanup():
+    pass
+
+
+def setwarnings(_: bool):
     pass
 
 
@@ -33,4 +45,5 @@ class PWM:
     def start(self, _: int):
         pass
 ```
+
 This is to mimic Raspberry Pi build-in GPIO library.
